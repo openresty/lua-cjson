@@ -68,7 +68,7 @@
 #define DEFAULT_DECODE_INVALID_NUMBERS 1
 #define DEFAULT_ENCODE_KEEP_BUFFER 1
 #define DEFAULT_ENCODE_NUMBER_PRECISION 14
-#define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
+#define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT -1
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -712,8 +712,7 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
         current_depth++;
         json_check_encode_depth(l, cfg, current_depth, json);
         len = lua_array_length(l, cfg, json);
-        /** if (len >= 0 || !cfg->encode_empty_table_as_object) **/
-        if (len >= 0)
+        if (len > 0 || ( len == 0 && (cfg->encode_empty_table_as_object <= 0) ))
             json_append_array(l, cfg, current_depth, json, len);
         else
             json_append_object(l, cfg, current_depth, json);
