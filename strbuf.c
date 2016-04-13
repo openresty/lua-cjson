@@ -59,7 +59,7 @@ void strbuf_init(strbuf_t *s, size_t len)
     s->reallocs = 0;
     s->debug = 0;
 
-    s->buf = malloc(size);
+    s->buf = (char *)malloc(size);
     if (!s->buf)
         die("Out of memory");
 
@@ -70,7 +70,7 @@ strbuf_t *strbuf_new(size_t len)
 {
     strbuf_t *s;
 
-    s = malloc(sizeof(strbuf_t));
+    s = (strbuf_t*)malloc(sizeof(strbuf_t));
     if (!s)
         die("Out of memory");
 
@@ -169,7 +169,7 @@ void strbuf_resize(strbuf_t *s, size_t len)
     }
 
     s->size = newsize;
-    s->buf = realloc(s->buf, s->size);
+    s->buf = (char *)realloc(s->buf, s->size);
     if (!s->buf)
         die("Out of memory, len: %zu", len);
     s->reallocs++;
