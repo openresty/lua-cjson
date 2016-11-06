@@ -75,7 +75,11 @@
 #define DEFAULT_DECODE_INVALID_NUMBERS 0
 #endif
 
-// fix when compile under Microsoft Visual Studio, the compiler will complain that unable to find the reference of strncasecmp
+/*
+ * 
+ fix when compile under Microsoft Visual Studio, the compiler will complain that unable to find the reference of strncasecmp
+*/
+
 
 #ifdef _MSC_VER
 #define strncasecmp _strnicmp
