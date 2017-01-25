@@ -145,6 +145,7 @@ typedef struct {
     strbuf_t *tmp;    /* Temporary storage for strings */
     json_config_t *cfg;
     int current_depth;
+    int user_callbacks;
 } json_parse_t;
 
 typedef struct {
@@ -1175,14 +1176,13 @@ static void json_decode_descend(lua_State *l, json_parse_t *json, int slots)
 static void json_parse_object_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
-    int user_callback = lua_toboolean(l, 3);
     int saved_sp;
 
     /* 3 or 4 slots required:
      * .., table, [callback], key, value */
-    json_decode_descend(l, json, 3 + user_callback);
+    json_decode_descend(l, json, 3 + json->user_callbacks);
 
-    if (user_callback) {
+    if (json->user_callbacks) {
         /* User callback */
         lua_getfield(l, 2, "obj_beg_cb");
         if (lua_isfunction(l, -1)) {
@@ -1213,9 +1213,10 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
         if (token.type != T_STRING)
             json_throw_parse_error(l, json, "object key string", &token);
 
-        if (user_callback) {
+        saved_sp = lua_gettop(l);
+
+        if (json->user_callbacks) {
             /* Push value callback */
-            saved_sp = lua_gettop(l);
             lua_getfield(l, 2, "value_cb");
         }
 
@@ -1230,7 +1231,7 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
         json_next_token(json, &token);
         json_process_value(l, json, &token);
 
-        if (user_callback) {
+        if (json->user_callbacks) {
             if (lua_isfunction(l, saved_sp + 1)) {
                 lua_settop(l, saved_sp + 3);
                 if (token.type == T_STRING  ||
@@ -1265,7 +1266,7 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
 
 callback:
 
-    if (user_callback) {
+    if (json->user_callbacks) {
         /* user callback */
         lua_getfield(l, 2, "obj_end_cb");
         if (lua_isfunction(l, -1)) {
@@ -1281,14 +1282,13 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
     int i;
-    int user_callback = lua_toboolean(l, 3);
     int saved_sp;
 
     /* 2 slots required:
      * .., table, [callback, key=nil], value */
-    json_decode_descend(l, json, 2 + user_callback * 2);
+    json_decode_descend(l, json, 2 + json->user_callbacks * 2);
 
-    if (user_callback) {
+    if (json->user_callbacks) {
         /* User callback */
         lua_getfield(l, 2, "arr_beg_cb");
         if (lua_isfunction(l, -1)) {
@@ -1316,16 +1316,18 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
     }
 
     for (i = 1; ; i++) {
-        if (user_callback) {
+        saved_sp = lua_gettop(l);
+
+        if (json->user_callbacks) {
             /* Push value callback */
-            saved_sp = lua_gettop(l);
+
             lua_getfield(l, 2, "value_cb");
             lua_pushnil(l);
         }
 
         json_process_value(l, json, &token);
 
-        if (user_callback) {
+        if (json->user_callbacks) {
             if (lua_isfunction(l, saved_sp + 1)) {
                 lua_settop(l, saved_sp + 3);
                 if (token.type == T_STRING  ||
@@ -1360,7 +1362,7 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
 
 callback:
 
-    if (user_callback) {
+    if (json->user_callbacks) {
         /* User callback */
         lua_getfield(l, 2, "arr_end_cb");
         if (lua_isfunction(l, -1)) {
@@ -1413,13 +1415,12 @@ static int json_decode(lua_State *l)
     }
 
     if (top == 1) {
-        lua_pushnil(l);
-        lua_pushboolean(l, 0);
+        json.user_callbacks = 0;
     } else {
         if (lua_istable(l, 2) == 0) {
-            luaL_error(l, "opts argument must be a table with callbacks");
+            luaL_error(l, "opts argument must be a table with additional options");
         }
-        lua_pushboolean(l, 1);
+        json.user_callbacks = 1;
     }
 
     json.cfg = json_fetch_config(l);
