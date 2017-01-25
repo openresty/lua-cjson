@@ -1196,6 +1196,9 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
             if (lua_pcall(l, 1, 0, 0) != 0) {
                 luaL_error(l, lua_tostring(l, -1));
             }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
         }
     } else {
         lua_newtable(l);
@@ -1273,6 +1276,9 @@ callback:
             if (lua_pcall(l, 0, 0, 0) != 0) {
                 luaL_error(l, lua_tostring(l, -1));
             }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
         }
     }
 }
@@ -1302,6 +1308,9 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
             if (lua_pcall(l, 1, 0, 0) != 0) {
                 luaL_error(l, lua_tostring(l, -1));
             }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
         }
     } else {
         lua_newtable(l);
@@ -1369,6 +1378,9 @@ callback:
             if (lua_pcall(l, 0, 0, 0) != 0) {
                 luaL_error(l, lua_tostring(l, -1));
             }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
         }
     }
 }
@@ -1414,13 +1426,25 @@ static int json_decode(lua_State *l)
         luaL_error(l, "expected 1 or 2 arguments");
     }
 
-    if (top == 1) {
-        json.user_callbacks = 0;
-    } else {
+    json.user_callbacks = 0;
+
+    if (top == 2) {
         if (lua_istable(l, 2) == 0) {
             luaL_error(l, "opts argument must be a table with additional options");
         }
-        json.user_callbacks = 1;
+
+        lua_getfield(l, 2, "obj_beg_cb");
+        lua_getfield(l, 2, "obj_end_cb");
+        lua_getfield(l, 2, "arr_beg_cb");
+        lua_getfield(l, 2, "arr_end_cb");
+        lua_getfield(l, 2, "value_cb");
+
+        json.user_callbacks = !lua_isnil(l, -5) &&
+                              !lua_isnil(l, -4) &&
+                              !lua_isnil(l, -3) &&
+                              !lua_isnil(l, -2) &&
+                              !lua_isnil(l, -1);
+        lua_pop(l, 5);
     }
 
     json.cfg = json_fetch_config(l);
