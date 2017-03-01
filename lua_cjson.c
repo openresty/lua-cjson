@@ -1242,15 +1242,16 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
      * .., table, value */
     json_decode_descend(l, json, 2);
 
-    lua_newtable(l);
-
     json_next_token(json, &token);
 
     /* Handle empty arrays */
     if (token.type == T_ARR_END) {
+        lua_pushlightuserdata(l, &json_empty_array);
         json_decode_ascend(json);
         return;
     }
+
+    lua_newtable(l);
 
     for (i = 1; ; i++) {
         json_process_value(l, json, &token);
