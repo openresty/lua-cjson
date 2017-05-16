@@ -113,7 +113,26 @@ print(cjson.encode(data))
 
 
 
-=== TEST 9: multiple calls to lua_cjson_new (1/2)
+=== TEST 9: cjson.array_mt is an alias to cjson.empty_array_mt
+--- lua
+local cjson = require "cjson"
+print(cjson.array_mt == cjson.empty_array_mt)
+--- out
+true
+
+
+
+=== TEST 10: array_mt behaves as empty_array_mt
+--- lua
+local cjson = require "cjson"
+local empty_arr = setmetatable({}, cjson.array_mt)
+print(cjson.encode({obj = {}, arr = empty_arr}))
+--- out
+{"arr":[],"obj":{}}
+
+
+
+=== TEST 11: multiple calls to lua_cjson_new (1/2)
 --- lua
 local cjson = require "cjson"
 package.loaded["cjson"] = nil
@@ -125,7 +144,7 @@ print(cjson.encode(arr))
 
 
 
-=== TEST 10: multiple calls to lua_cjson_new (2/2)
+=== TEST 12: multiple calls to lua_cjson_new (2/2)
 --- lua
 local cjson = require "cjson.safe"
 -- load another cjson instance (not in package.loaded)
@@ -137,7 +156,7 @@ print(cjson.encode(arr))
 
 
 
-=== TEST 11: & in JSON
+=== TEST 13: & in JSON
 --- lua
 local cjson = require "cjson"
 local a="[\"a=1&b=2\"]"
@@ -148,7 +167,7 @@ print(cjson.encode(b))
 
 
 
-=== TEST 12: default and max precision
+=== TEST 14: default and max precision
 --- lua
 local math = require "math"
 local cjson = require "cjson"

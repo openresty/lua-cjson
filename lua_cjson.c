@@ -1444,6 +1444,11 @@ static int lua_cjson_new(lua_State *l)
     lua_rawget(l, LUA_REGISTRYINDEX);
     lua_setfield(l, -2, "empty_array_mt");
 
+    /* Set cjson.array_mt */
+    lua_pushlightuserdata(l, &json_empty_array);
+    lua_rawget(l, LUA_REGISTRYINDEX);
+    lua_setfield(l, -2, "array_mt");
+
     /* Set cjson.empty_array */
     lua_pushlightuserdata(l, &json_empty_array);
     lua_setfield(l, -2, "empty_array");
