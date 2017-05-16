@@ -12,6 +12,7 @@ Table of Contents
     * [encode_empty_table_as_object](#encode_empty_table_as_object)
     * [empty_array](#empty_array)
     * [empty_array_mt](#empty_array_mt)
+    * [array_mt](#array_mt)
     * [encode_number_precision](#encode_number_precision)
 
 Description
@@ -80,6 +81,16 @@ empty_array_mt
 --------------
 **syntax:** `setmetatable({}, cjson.empty_array_mt)`
 
+**NOTE**: Use of this field is *discouraged* as of the `2.1.0.6` release. This
+field is considered *depcrecated*, and has been renamed to
+[array_mt](#array_mt) for expliciteness.
+
+[Back to TOC](#table-of-contents)
+
+array_mt
+--------
+**syntax:** `setmetatable({}, cjson.array_mt)`
+
 A metatable which can "tag" a table as a JSON Array in case it is empty (that is, if the
 table has no elements, `cjson.encode()` will encode it as an empty JSON Array).
 
@@ -99,7 +110,7 @@ This is more concise:
 
 ```lua
 local function serialize(arr)
-    setmetatable(arr, cjson.empty_array_mt)
+    setmetatable(arr, cjson.array_mt)
 
     return cjson.encode({some_array = arr})
 end
