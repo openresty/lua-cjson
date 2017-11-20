@@ -89,6 +89,101 @@ local NaN = math.huge * 0;
 
 local testdata = load_testdata()
 
+function check_callback(n)
+  local f, err = io.open(n, "r")
+
+  local l = f:read("*a")
+
+  f:close()
+
+  local j
+  local depth = {}
+  local p
+
+  local opts = {
+    obj_beg_cb = function(name)
+      p = {}
+      if name then
+        j[name] = p
+      else
+        if j then
+          table.insert(j, p)
+        else
+          j = p
+        end
+      end
+      table.insert(depth, j)
+      j = p
+    end,
+
+    obj_end_cb = function()
+      j = table.remove(depth)
+    end,
+
+    arr_beg_cb = function(name)
+      p = {}
+      if name then
+        j[name] = p
+      else
+        if j then
+          table.insert(j, p)
+        else
+          j = p
+        end
+      end
+      table.insert(depth, j)
+      j = p
+    end,
+
+    arr_end_cb = function()
+      j = table.remove(depth)
+    end,
+
+    value_cb = function(name, value)
+      if name then
+        j[name] = value
+      else
+        table.insert(j, value)
+      end
+    end
+  }
+
+  local compare
+  compare = function(tab, tab_orig)
+    for k,v in pairs(tab_orig)
+    do
+      if tab[k] == nil then
+        print("tab[" .. k .. "]=nil")
+        return false
+      end
+      if type(v) == "table" and type(tab[k]) == "table" then
+        if not compare(tab[k], v) then
+          return false
+        end
+      elseif v ~= tab[k] then
+        print(v .. "~=" .. tab[k])
+        return false
+      end
+    end
+    return true
+  end
+
+  json.decode(l, opts)
+
+  local j_orig = json.decode(l)
+
+  if compare(j, j_orig) and compare(j_orig, j) then
+    return true
+  else
+    print("Fail")
+    print(json.encode(j))
+    print("==============")
+    print(json.encode(j_orig))
+  end
+
+  return false
+end
+
 local cjson_tests = {
     -- Test API variables
     { "Check module name, version",
@@ -402,6 +497,29 @@ local cjson_tests = {
     { "Decode (safe) error generation after new()",
       function(...) return json_safe.new().decode(...) end, { "Oops" },
       true, { nil, "Expected value but found invalid token at character 1" } },
+
+    -- User callbacks test
+    { "User callback example1.json",
+      check_callback, { "example1.json" },
+      true, { true } },
+    { "User callback example2.json",
+      check_callback, { "example2.json" },
+      true, { true } },
+    { "User callback example3.json",
+      check_callback, { "example3.json" },
+      true, { true } },
+    { "User callback example4.json",
+      check_callback, { "example4.json" },
+      true, { true } },
+    { "User callback example5.json",
+      check_callback, { "example5.json" },
+      true, { true } },
+    { "User callback rfc-example1.json",
+      check_callback, { "rfc-example1.json" },
+      true, { true } },
+    { "User callback rfc-example2.json",
+      check_callback, { "rfc-example2.json" },
+      true, { true } }
 }
 
 print(("==> Testing Lua CJSON version %s\n"):format(json._VERSION))

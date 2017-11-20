@@ -158,6 +158,7 @@ typedef struct {
     strbuf_t *tmp;    /* Temporary storage for strings */
     json_config_t *cfg;
     int current_depth;
+    int user_callbacks;
 } json_parse_t;
 
 typedef struct {
@@ -1216,24 +1217,52 @@ static void json_decode_descend(lua_State *l, json_parse_t *json, int slots)
 static void json_parse_object_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
+    int saved_sp;
 
-    /* 3 slots required:
-     * .., table, key, value */
-    json_decode_descend(l, json, 3);
+    /* 3 or 4 slots required:
+     * .., table, [callback], key, value */
+    json_decode_descend(l, json, 3 + json->user_callbacks);
 
-    lua_newtable(l);
+    if (json->user_callbacks) {
+        /* User callback */
+        lua_getfield(l, 2, "obj_beg_cb");
+        if (lua_isfunction(l, -1)) {
+            if (lua_isstring(l, -2)) {
+                /* Push object name */
+                lua_pushstring(l, lua_tostring(l, -2));
+            } else {
+                /* Root of JSON or object in the array */
+                lua_pushnil(l);
+            }
+            if (lua_pcall(l, 1, 0, 0) != 0) {
+                luaL_error(l, lua_tostring(l, -1));
+            }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
+        }
+    } else {
+        lua_newtable(l);
+    }
 
     json_next_token(json, &token);
 
     /* Handle empty objects */
     if (token.type == T_OBJ_END) {
         json_decode_ascend(json);
-        return;
+        goto callback;
     }
 
     while (1) {
         if (token.type != T_STRING)
             json_throw_parse_error(l, json, "object key string", &token);
+
+        saved_sp = lua_gettop(l);
+
+        if (json->user_callbacks) {
+            /* Push value callback */
+            lua_getfield(l, 2, "value_cb");
+        }
 
         /* Push key */
         lua_pushlstring(l, token.value.string, token.string_len);
@@ -1246,20 +1275,52 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
         json_next_token(json, &token);
         json_process_value(l, json, &token);
 
-        /* Set key = value */
-        lua_rawset(l, -3);
+        if (json->user_callbacks) {
+            if (lua_isfunction(l, saved_sp + 1)) {
+                lua_settop(l, saved_sp + 3);
+                if (token.type == T_STRING  ||
+                    token.type == T_NUMBER  ||
+                    token.type == T_BOOLEAN ||
+                    token.type == T_NULL) {
+                    /* Call user code */
+                    if (lua_pcall(l, 2, 0, 0) != 0) {
+                        luaL_error(l, lua_tostring(l, -1));
+                    }
+                }
+            }
+            /* Cleanup stack */
+            lua_settop(l, saved_sp);
+        } else {
+            /* Set key = value */
+            lua_rawset(l, -3);
+        }
 
         json_next_token(json, &token);
 
         if (token.type == T_OBJ_END) {
             json_decode_ascend(json);
-            return;
+            goto callback;
         }
 
         if (token.type != T_COMMA)
             json_throw_parse_error(l, json, "comma or object end", &token);
 
         json_next_token(json, &token);
+    }
+
+callback:
+
+    if (json->user_callbacks) {
+        /* user callback */
+        lua_getfield(l, 2, "obj_end_cb");
+        if (lua_isfunction(l, -1)) {
+            if (lua_pcall(l, 0, 0, 0) != 0) {
+                luaL_error(l, lua_tostring(l, -1));
+            }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
+        }
     }
 }
 
@@ -1268,12 +1329,33 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
 {
     json_token_t token;
     int i;
+    int saved_sp;
 
     /* 2 slots required:
-     * .., table, value */
-    json_decode_descend(l, json, 2);
+     * .., table, [callback, key=nil], value */
+    json_decode_descend(l, json, 2 + json->user_callbacks * 2);
 
-    lua_newtable(l);
+    if (json->user_callbacks) {
+        /* User callback */
+        lua_getfield(l, 2, "arr_beg_cb");
+        if (lua_isfunction(l, -1)) {
+            if (lua_isstring(l, -2)) {
+                /* Push object name */
+                lua_pushstring(l, lua_tostring(l, -2));
+            } else {
+                /* Root of JSON or array in the array */
+                lua_pushnil(l);
+            }
+            if (lua_pcall(l, 1, 0, 0) != 0) {
+                luaL_error(l, lua_tostring(l, -1));
+            }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
+        }
+    } else {
+        lua_newtable(l);
+    }
 
     /* set array_mt on the table at the top of the stack */
     if (json->cfg->decode_array_with_array_mt) {
@@ -1287,24 +1369,67 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
     /* Handle empty arrays */
     if (token.type == T_ARR_END) {
         json_decode_ascend(json);
-        return;
+        goto callback;
     }
 
     for (i = 1; ; i++) {
+        saved_sp = lua_gettop(l);
+
+        if (json->user_callbacks) {
+            /* Push value callback */
+
+            lua_getfield(l, 2, "value_cb");
+            lua_pushnil(l);
+        }
+
         json_process_value(l, json, &token);
-        lua_rawseti(l, -2, i);            /* arr[i] = value */
+
+        if (json->user_callbacks) {
+            if (lua_isfunction(l, saved_sp + 1)) {
+                lua_settop(l, saved_sp + 3);
+                if (token.type == T_STRING  ||
+                    token.type == T_NUMBER  ||
+                    token.type == T_BOOLEAN ||
+                    token.type == T_NULL) {
+                    /* Call user code */
+                    if (lua_pcall(l, 2, 0, 0) != 0) {
+                        luaL_error(l, lua_tostring(l, -1));
+                    }
+                }
+            }
+            /* Cleanup stack */
+            lua_settop(l, saved_sp);
+        } else {
+            /* arr[i] = value */
+            lua_rawseti(l, -2, i);
+        }
 
         json_next_token(json, &token);
 
         if (token.type == T_ARR_END) {
             json_decode_ascend(json);
-            return;
+            goto callback;
         }
 
         if (token.type != T_COMMA)
             json_throw_parse_error(l, json, "comma or array end", &token);
 
         json_next_token(json, &token);
+    }
+
+callback:
+
+    if (json->user_callbacks) {
+        /* User callback */
+        lua_getfield(l, 2, "arr_end_cb");
+        if (lua_isfunction(l, -1)) {
+            if (lua_pcall(l, 0, 0, 0) != 0) {
+                luaL_error(l, lua_tostring(l, -1));
+            }
+        } else {
+            /* pop nil */
+            lua_pop(l, 1);
+        }
     }
 }
 
@@ -1343,8 +1468,32 @@ static int json_decode(lua_State *l)
     json_parse_t json;
     json_token_t token;
     size_t json_len;
+    size_t top = lua_gettop(l);
 
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
+    if (top != 1 && top != 2) {
+        luaL_error(l, "expected 1 or 2 arguments");
+    }
+
+    json.user_callbacks = 0;
+
+    if (top == 2) {
+        if (lua_istable(l, 2) == 0) {
+            luaL_error(l, "opts argument must be a table with additional options");
+        }
+
+        lua_getfield(l, 2, "obj_beg_cb");
+        lua_getfield(l, 2, "obj_end_cb");
+        lua_getfield(l, 2, "arr_beg_cb");
+        lua_getfield(l, 2, "arr_end_cb");
+        lua_getfield(l, 2, "value_cb");
+
+        json.user_callbacks = !lua_isnil(l, -5) &&
+                              !lua_isnil(l, -4) &&
+                              !lua_isnil(l, -3) &&
+                              !lua_isnil(l, -2) &&
+                              !lua_isnil(l, -1);
+        lua_pop(l, 5);
+    }
 
     json.cfg = json_fetch_config(l);
     json.data = luaL_checklstring(l, 1, &json_len);
@@ -1356,8 +1505,12 @@ static int json_decode(lua_State *l)
      * CJSON can support any simple data type, hence only the first
      * character is guaranteed to be ASCII (at worst: '"'). This is
      * still enough to detect whether the wrong encoding is in use. */
-    if (json_len >= 2 && (!json.data[0] || !json.data[1]))
+    if (json_len >= 2 && (!json.data[0] || !json.data[1])) {
+        if (top == 2) {
+            lua_settop(l, top);
+        }
         luaL_error(l, "JSON parser does not support UTF-16 or UTF-32");
+    }
 
     /* Ensure the temporary buffer can hold the entire string.
      * This means we no longer need to do length checks since the decoded
