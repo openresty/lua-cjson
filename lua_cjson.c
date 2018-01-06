@@ -740,7 +740,11 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
         }
 
         if (as_array) {
+#if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 502
             len = lua_objlen(l, -1);
+#else
+            len = lua_rawlen(l, -1);
+#endif
             json_append_array(l, cfg, current_depth, json, len);
         } else {
             len = lua_array_length(l, cfg, json);
