@@ -633,17 +633,12 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
                                strbuf_t *json, int lindex)
 {
     int len;
+    double num;
 #if LUA_VERSION_NUM >= 503
-    if (lua_isinteger(l, lindex)) {
-        lua_Integer num = lua_tointeger(l, lindex);
-        strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE); /* max length of int64 is 19 */
-        len = sprintf(strbuf_empty_ptr(json), LUA_INTEGER_FMT, num);
-        strbuf_extend_length(json, len);
-        return;
-    }
+    lua_Integer integer;
 #endif
-    double num = lua_tonumber(l, lindex);
-
+    
+    num = lua_tonumber(l, lindex);
     if (cfg->encode_invalid_numbers == 0) {
         /* Prevent encoding invalid numbers */
         if (isinf(num) || isnan(num))
@@ -670,6 +665,16 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
             return;
         }
     }
+
+#if LUA_VERSION_NUM >= 503
+    if (lua_isinteger(l, lindex)) {
+        integer = lua_tointeger(l, lindex);
+        strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE); /* max length of int64 is 19 */
+        len = sprintf(strbuf_empty_ptr(json), LUA_INTEGER_FMT, integer);
+        strbuf_extend_length(json, len);
+        return;
+    }
+#endif
 
     strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE);
     len = fpconv_g_fmt(strbuf_empty_ptr(json), num, cfg->encode_number_precision);
@@ -1093,7 +1098,7 @@ static int json_is_invalid_number(json_parse_t *json)
 static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
     char *endptr;
-    token->value.integer = strtoll(json->ptr, &endptr, 0);
+    token->value.integer = strtoll(json->ptr, &endptr, 10);
     if (json->ptr == endptr) {
         json_set_token_error(token, json, "invalid number");
         return;
@@ -1103,7 +1108,6 @@ static void json_next_number_token(json_parse_t *json, json_token_t *token)
         token->value.number = fpconv_strtod(json->ptr, &endptr);
     } else {
         token->type = T_INTEGER;
-        token->value.integer = fpconv_strtod(json->ptr, &endptr);
     }
     json->ptr = endptr;     /* Skip the processed number */
 
