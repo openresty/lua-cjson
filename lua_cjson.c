@@ -1103,6 +1103,7 @@ static void json_next_number_token(json_parse_t *json, json_token_t *token)
         token->value.number = fpconv_strtod(json->ptr, &endptr);
     } else {
         token->type = T_INTEGER;
+        token->value.integer = fpconv_strtod(json->ptr, &endptr);
     }
     json->ptr = endptr;     /* Skip the processed number */
 
