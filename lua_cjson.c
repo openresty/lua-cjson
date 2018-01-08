@@ -637,7 +637,7 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
 #if LUA_VERSION_NUM >= 503
     lua_Integer integer;
 #endif
-    
+
     num = lua_tonumber(l, lindex);
     if (cfg->encode_invalid_numbers == 0) {
         /* Prevent encoding invalid numbers */
@@ -1097,13 +1097,22 @@ static int json_is_invalid_number(json_parse_t *json)
 
 static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
+    int invalid, enable_invalid;
     char *endptr;
-    token->value.integer = strtoll(json->ptr, &endptr, 10);
+
+    invalid = 0;
+    enable_invalid = json->cfg->decode_invalid_numbers &&
+        json_is_invalid_number(json);
+
+    token->value.integer = strtoll(json->ptr, &endptr, 0);
     if (json->ptr == endptr) {
-        json_set_token_error(token, json, "invalid number");
-        return;
+        invalid = 1;
+        if (!enable_invalid) {
+            json_set_token_error(token, json, "invalid number");
+            return;
+        }
     }
-    if (*endptr == '.' || *endptr == 'e' || *endptr == 'E') {
+    if (*endptr == '.' || *endptr == 'e' || *endptr == 'E' || (invalid && enable_invalid)) {
         token->type = T_NUMBER;
         token->value.number = fpconv_strtod(json->ptr, &endptr);
     } else {
