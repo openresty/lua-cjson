@@ -1,7 +1,9 @@
 Name
 ====
 
-lua-cjson - Fast JSON encoding/parsing
+> Temporary fork, please do not use.
+
+kong-cjson - Fast JSON encoding/parsing
 
 Table of Contents
 =================
