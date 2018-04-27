@@ -80,6 +80,8 @@
 #define DEFAULT_ENCODE_NUMBER_PRECISION 14
 #define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
+#define NUMBER_INTEGER_ACCURACY 99999999999999
+
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -1078,12 +1080,34 @@ static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
     char *endptr;
 
-    token->type = T_NUMBER;
-    token->value.number = fpconv_strtod(json->ptr, &endptr);
-    if (json->ptr == endptr)
+    long long int number = strtoll(json->ptr, &endptr, 0);
+
+    if (json->ptr == endptr) {
         json_set_token_error(token, json, "invalid number");
-    else
-        json->ptr = endptr;     /* Skip the processed number */
+    }
+
+    if (*endptr == '.' || *endptr == 'e' || *endptr == 'E') {
+        token->type = T_NUMBER;
+        token->value.number = fpconv_strtod(json->ptr, &endptr);
+    } else if (number < NUMBER_INTEGER_ACCURACY * -1 || NUMBER_INTEGER_ACCURACY < number) {
+        strbuf_reset(json->tmp);
+        while (1) {
+            strbuf_append_char_unsafe(json->tmp, *json->ptr++);
+            if (json->ptr == endptr) {
+                break;
+            }
+        }
+
+        strbuf_ensure_null(json->tmp);
+
+        token->type = T_STRING;
+        token->value.string = strbuf_string(json->tmp, &token->string_len);
+    } else {
+        token->type = T_NUMBER;
+        token->value.number = (double) number;
+    }
+
+    json->ptr = endptr;     /* Skip the processed number */
 
     return;
 }
