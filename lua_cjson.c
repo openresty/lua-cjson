@@ -110,8 +110,10 @@
 #define json_lightudata_mask(ludata)    (ludata)
 #endif
 
-#if LUA_VERSION_NUM > 501
-#define lua_objlen(L,i)		lua_rawlen(L, (i))
+#if LUA_VERSION_NUM == 502
+#define lua_objlen(L,i)		lua_len(L, (i))
+#elif LUA_VERSION_NUM > 502
+#define lua_objlen(L,i)		luaL_len(L, (i))
 #endif
 
 static const char * const *json_empty_array;
@@ -815,7 +817,13 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
             lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
             lua_rawget(l, LUA_REGISTRYINDEX);
             as_array = lua_rawequal(l, -1, -2);
-            lua_pop(l, 2);
+            if (as_array) {
+                lua_pop(l, 2);
+            } else {
+                lua_pop(l, 1);
+                as_array = (luaL_getmetafield(l, -1, "__len") != LUA_TNIL);
+                lua_pop(l, 1);
+            }
         }
 
         if (as_array) {
