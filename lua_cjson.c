@@ -93,13 +93,8 @@
 #define strcasecmp _stricmp
 #endif
 
-#if defined(__aarch64__)
 #define json_lightudata_mask(ludata)                                         \
     ((void *) ((uintptr_t) (ludata) & ((1UL << 47) - 1)))
-
-#else
-#define json_lightudata_mask(ludata)    (ludata)
-#endif
 
 static const char * const *json_empty_array;
 static const char * const *json_array;
