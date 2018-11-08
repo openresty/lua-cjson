@@ -23,6 +23,8 @@ LUA_CMODULE_DIR ?=   $(PREFIX)/lib/lua/$(LUA_VERSION)
 LUA_MODULE_DIR ?=    $(PREFIX)/share/lua/$(LUA_VERSION)
 LUA_BIN_DIR ?=       $(PREFIX)/bin
 
+AR= $(CC) -o
+
 ##### Platform overrides #####
 ##
 ## Tweak one of the platform sections below to suit your situation.
@@ -97,7 +99,7 @@ all: $(TARGET)
 doc: manual.html performance.html
 
 $(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) $(CJSON_LDFLAGS) -o $@ $(OBJS)
+	$(AR) $@ $(LDFLAGS) $(CJSON_LDFLAGS) $(OBJS)
 
 install: $(TARGET)
 	mkdir -p $(DESTDIR)$(LUA_CMODULE_DIR)
