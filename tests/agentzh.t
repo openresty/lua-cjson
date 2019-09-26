@@ -284,3 +284,19 @@ print(string.format("%16.0f", cjson.decode("9007199254740992")))
 9.007199254741e+15
 9007199254740992
 9007199254740992
+
+
+
+=== TEST 21: optional json null
+--- lua
+local cjson = require "cjson"
+local json = [[{"val1":"str","val2":null,"val3":{"val1":null,"val2":"str"}}]]
+print(cjson.encode(cjson.decode(json)))
+cjson.decode_json_null(false)
+print(cjson.encode(cjson.decode(json)))
+cjson.decode_json_null(true)
+print(cjson.encode(cjson.decode(json)))
+--- out
+{"val3":{"val2":"str","val1":null},"val1":"str","val2":null}
+{"val3":{"val2":"str"},"val1":"str"}
+{"val3":{"val2":"str","val1":null},"val1":"str","val2":null}

@@ -15,6 +15,7 @@ Table of Contents
     * [empty_array_mt](#empty_array_mt)
     * [encode_number_precision](#encode_number_precision)
     * [decode_array_with_array_mt](#decode_array_with_array_mt)
+    * [decode_json_null](#decode_json_null)
 
 Description
 ===========
@@ -191,5 +192,15 @@ local my_json = [[{"my_array":[]}]]
 local t = cjson.decode(my_json)
 cjson.encode(t) -- {"my_array":[]} properly re-encoded as an array
 ```
+
+[Back to TOC](#table-of-contents)
+
+decode_json_null
+-----------------------
+**syntax:** `cjson.decode_json_null(enabled)`
+
+**default:** true
+
+If disabled, JSON null values will be decoded to Lua `nil` (removed from table) instead of the default `cjson.null` lightuserdata value.
 
 [Back to TOC](#table-of-contents)
