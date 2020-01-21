@@ -8,6 +8,7 @@ cmake_minimum_required(VERSION 2.6)
 
 option(USE_INTERNAL_FPCONV "Use internal strtod() / g_fmt() code for performance")
 option(MULTIPLE_THREADS "Support multi-threaded apps with internal fpconv - recommended" ON)
+option(USE_ECMA_262 "Use ecma-262 formatting rules for internal g_fmt()")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING
@@ -17,6 +18,10 @@ endif()
 
 find_package(Lua51 REQUIRED)
 include_directories(${LUA_INCLUDE_DIR})
+
+if(USE_ECMA_262)
+    add_definitions(-DUSE_ECMA_262)
+endif()
 
 if(NOT USE_INTERNAL_FPCONV)
     # Use libc number conversion routines (strtod(), sprintf())

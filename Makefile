@@ -60,6 +60,10 @@ FPCONV_OBJS =       fpconv.o
 #FPCONV_OBJS =       g_fmt.o dtoa.o
 #CJSON_CFLAGS +=     -DUSE_INTERNAL_FPCONV
 
+## Use ecma-262 formatting rules for internal number conversion
+#FPCONV_OBJS =       g_fmt.o dtoa.o
+#CJSON_CFLAGS +=     -DUSE_INTERNAL_FPCONV -DUSE_ECMA_262
+
 ## Compile built in number conversion for big endian architectures
 #CJSON_CFLAGS +=     -DIEEE_BIG_ENDIAN
 
