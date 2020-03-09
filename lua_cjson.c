@@ -81,6 +81,7 @@
 #define DEFAULT_ENCODE_NUMBER_PRECISION 14
 #define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
+#define DEFAULT_ENCODE_ESCAPE_SLASH 1
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -155,6 +156,7 @@ typedef struct {
     int encode_number_precision;
     int encode_keep_buffer;
     int encode_empty_table_as_object;
+    int encode_escape_slash;
 
     int decode_invalid_numbers;
     int decode_max_depth;
@@ -406,6 +408,13 @@ static int json_cfg_decode_invalid_numbers(lua_State *l)
     return 1;
 }
 
+static int json_cfg_encode_escape_slash(lua_State *l)
+{
+    json_config_t *cfg = json_arg_init(l, 1);
+
+    return json_enum_option(l, 1, &cfg->encode_escape_slash, NULL, 1);
+}
+
 static int json_destroy_config(lua_State *l)
 {
     json_config_t *cfg;
@@ -442,6 +451,7 @@ static void json_create_config(lua_State *l)
     cfg->encode_number_precision = DEFAULT_ENCODE_NUMBER_PRECISION;
     cfg->encode_empty_table_as_object = DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT;
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
+    cfg->encode_escape_slash = DEFAULT_ENCODE_ESCAPE_SLASH;
 
 #if DEFAULT_ENCODE_KEEP_BUFFER > 0
     strbuf_init(&cfg->encode_buf, 0);
@@ -510,12 +520,13 @@ static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *js
  * - String (Lua stack index)
  *
  * Returns nothing. Doesn't remove string from Lua stack */
-static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
+static void json_append_string(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex)
 {
     const char *escstr;
     unsigned i;
     const char *str;
     size_t len;
+    int escape_slash = cfg->encode_escape_slash;
 
     str = lua_tolstring(l, lindex, &len);
 
@@ -528,7 +539,7 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
     strbuf_append_char_unsafe(json, '\"');
     for (i = 0; i < len; i++) {
         escstr = char2escape[(unsigned char)str[i]];
-        if (escstr)
+        if (escstr && (escape_slash || str[i] != '/'))
             strbuf_append_string(json, escstr);
         else
             strbuf_append_char_unsafe(json, str[i]);
@@ -697,7 +708,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
             json_append_number(l, cfg, json, -2);
             strbuf_append_mem(json, "\":", 2);
         } else if (keytype == LUA_TSTRING) {
-            json_append_string(l, json, -2);
+            json_append_string(l, cfg, json, -2);
             strbuf_append_char(json, ':');
         } else {
             json_encode_exception(l, cfg, json, -2,
@@ -724,7 +735,7 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
 
     switch (lua_type(l, -1)) {
     case LUA_TSTRING:
-        json_append_string(l, json, -1);
+        json_append_string(l, cfg, json, -1);
         break;
     case LUA_TNUMBER:
         json_append_number(l, cfg, json, -1);
@@ -1457,6 +1468,7 @@ static int lua_cjson_new(lua_State *l)
         { "encode_keep_buffer", json_cfg_encode_keep_buffer },
         { "encode_invalid_numbers", json_cfg_encode_invalid_numbers },
         { "decode_invalid_numbers", json_cfg_decode_invalid_numbers },
+        { "encode_escape_slash", json_cfg_encode_escape_slash },
         { "new", lua_cjson_new },
         { NULL, NULL }
     };
