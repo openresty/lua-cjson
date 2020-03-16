@@ -284,3 +284,29 @@ print(string.format("%16.0f", cjson.decode("9007199254740992")))
 9.007199254741e+15
 9007199254740992
 9007199254740992
+
+
+
+=== TEST 21: disable error on invalid type
+--- lua
+local cjson = require "cjson"
+local f = function (x) return 2*x end
+local res, err = pcall(cjson.encode, f)
+print(err)
+local t = {f = f, valid = "valid"}
+local res, err = pcall(cjson.encode, t)
+print(err)
+local arr = {"one", "two", f, "three"}
+local res, err = pcall(cjson.encode, arr)
+print(err)
+cjson.encode_skip_unsupported_value_types(true)
+print(cjson.encode(f))
+print(cjson.encode(t))
+print(cjson.encode(arr))
+--- out
+Cannot serialise function: type not supported
+Cannot serialise function: type not supported
+Cannot serialise function: type not supported
+
+{"valid":"valid"}
+["one","two","three"]
