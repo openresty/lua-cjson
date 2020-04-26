@@ -110,6 +110,10 @@
 #define json_lightudata_mask(ludata)    (ludata)
 #endif
 
+#if LUA_VERSION_NUM == 501
+#define lua_geti(L, t, i)	lua_rawgeti(L, (t), (i))
+#endif
+
 #if LUA_VERSION_NUM == 502
 #define lua_objlen(L,i)		lua_len(L, (i))
 #elif LUA_VERSION_NUM > 502
@@ -678,7 +682,7 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
         if (comma++ > 0)
             strbuf_append_char(json, ',');
 
-        lua_rawgeti(l, -1, i);
+        lua_geti(l, -1, i);
         err = json_append_data(l, cfg, current_depth, json);
         if (err) {
             strbuf_set_length(json, json_pos);
