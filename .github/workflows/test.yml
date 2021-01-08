@@ -42,6 +42,7 @@ jobs:
         CC: ${{ matrix.cc }}
       run: |
         make PREFIX=.lua ${{ matrix.runtestArgs }}
+        sudo apt-get update
         sudo apt-get install -q valgrind libipc-run3-perl cppcheck cpanminus
         sudo cpanm --notest Test::Base Test::LongString
 
