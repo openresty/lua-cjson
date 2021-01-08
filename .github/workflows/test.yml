@@ -29,7 +29,7 @@ jobs:
         luaVersion: ${{ matrix.luaVersion }}
         luaCompileFlags: CC=${{ matrix.cc }}
 
-    - uses: leafo/gh-actions-luarocks@v2
+    - uses: leafo/gh-actions-luarocks@master
 
     - name: runtests.sh
       env:
