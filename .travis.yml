@@ -1,5 +1,5 @@
 sudo: required
-dist: trusty
+dist: bionic
 
 os: linux
 
@@ -49,7 +49,7 @@ script:
   - cppcheck -i ./luajit2 -i --force --error-exitcode=1 --enable=warning . > build.log 2>&1 || (cat build.log && exit 1)
   - sh runtests.sh
   - make
-  - prove -Itests tests
-  - TEST_LUA_USE_VALGRIND=1 prove -Itests tests > build.log 2>&1; export e=$?
+  - prove -I. -Itests tests
+  - TEST_LUA_USE_VALGRIND=1 prove -I. -Itests tests > build.log 2>&1; export e=$?
   - cat build.log
   - grep -E '^==[0-9]+==' build.log; if [ "$?" == 0 ]; then exit 1; else exit $e; fi
