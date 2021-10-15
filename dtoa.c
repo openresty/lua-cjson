@@ -2451,10 +2451,10 @@ retlow1:
 		if ((j = ((word0(rv) & Exp_mask) >> Exp_shift) - bc->scale) <= 0) {
 			i = 1 - j;
 			if (i <= 31) {
-				if (word1(rv) & (0x1 << i))
+				if (word1(rv) & (0x1U << i))
 					goto odd;
 				}
-			else if (word0(rv) & (0x1 << (i-32)))
+			else if (word0(rv) & (0x1U << (i-32)))
 				goto odd;
 			}
 		else if (word1(rv) & 1) {
