@@ -2488,7 +2488,7 @@ fpconv_strtod
 	U aadj2, adj, rv, rv0;
 	ULong y, z;
 	BCinfo bc;
-    Bigint *bb1, *bd0;
+	Bigint *bb1, *bd0;
 	Bigint *bb = NULL;
 	Bigint *bd = NULL;
 	Bigint *bs = NULL;
