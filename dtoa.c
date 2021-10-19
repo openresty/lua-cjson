@@ -2488,10 +2488,9 @@ fpconv_strtod
 	U aadj2, adj, rv, rv0;
 	ULong y, z;
 	BCinfo bc;
+    Bigint *bb1, *bd0;
 	Bigint *bb = NULL;
-	Bigint *bb1 = NULL;
 	Bigint *bd = NULL;
-	Bigint *bd0 = NULL;
 	Bigint *bs = NULL;
 	Bigint *delta = NULL;
 #ifdef Avoid_Underflow
