@@ -831,7 +831,7 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
     default:
         /* Remaining types (LUA_TFUNCTION, LUA_TUSERDATA, LUA_TTHREAD,
          * and LUA_TLIGHTUSERDATA) cannot be serialised */
-        if (cfg->encode_skip_unsupported_value_types && current_depth == 0) {
+        if (cfg->encode_skip_unsupported_value_types) {
             return 1;
         } else {
             json_encode_exception(l, cfg, json, -1, "type not supported");
