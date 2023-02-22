@@ -1517,22 +1517,20 @@ Bigint {
 	};
 
  typedef struct Bigint Bigint;
-
-#ifdef MULTIPLE_THREADS
  typedef struct
 ThInfo {
 	Bigint *Freelist[Kmax+1];
 	Bigint *P5s;
-	pthread_mutex_t l1;
-	pthread_mutex_t l2;
 	} ThInfo;
 
  static ThInfo TI0;
+
+#ifdef MULTIPLE_THREADS
  static ThInfo *TI1;
  static int TI0_used;
 
  void
-set_dtoa_pool(unsigned int n)
+set_max_dtoa_threads(unsigned int n)
 {
 	size_t L;
 
@@ -1553,12 +1551,6 @@ set_dtoa_pool(unsigned int n)
 			else
 				memset(TI1, 0, L);
 			}
-
-		for (size_t i = 0; i < n; i++) {
-			pthread_mutex_init(&(TI1 + i)->l1, NULL);
-			pthread_mutex_init(&(TI1 + i)->l2, NULL);
-		}
-
 		maxthreads = n;
 		}
 	}
@@ -1567,56 +1559,15 @@ set_dtoa_pool(unsigned int n)
 get_TI(void)
 {
 	unsigned int thno = dtoa_get_threadno();
-	if (maxthreads > 0) {
-		unsigned int thidx = thno % maxthreads;
-		return TI1 + thidx;
-	}
+	if (thno < maxthreads)
+		return TI1 + thno;
 	if (thno == 0)
 		TI0_used = 1;
 	return &TI0;
 	}
-
- void
-lock_TI(ThInfo* ti, int l)
-{
-	do {
-		int r;
-		if (l == 0)
-			r = pthread_mutex_lock(&ti->l1);
-		else
-			r = pthread_mutex_lock(&ti->l2);
-		if (r) {
-			fprintf(stderr, "pthread_mutex_lock failed with %d\n", r);
-			abort();
-			}
-		} while (0);
-	}
-
- void
-unlock_TI(ThInfo* ti, int l)
-{
-	do {
-		int r;
-		if (l == 0)
-			r = pthread_mutex_unlock(&ti->l1);
-		else
-			r = pthread_mutex_unlock(&ti->l2);
-		if (r) {
-			fprintf(stderr, "pthread_mutex_unlock failed with %d\n", r);
-			abort();
-			}
-		} while (0);
-	}
 #define freelist TI->Freelist
 #define p5s TI->P5s
 #else
- typedef struct
-ThInfo {
-	Bigint *Freelist[Kmax+1];
-	Bigint *P5s;
-	} ThInfo;
-
- static ThInfo TI0;
 #define freelist TI0.Freelist
 #define p5s TI0.P5s
 #endif
@@ -1636,9 +1587,6 @@ Balloc(int k MTd)
 		*PTI = TI = get_TI();
 	if (TI == &TI0)
 		ACQUIRE_DTOA_LOCK(0);
-	else
-		lock_TI(TI, 0);
-
 #endif
 	/* The k > Kmax case does not need ACQUIRE_DTOA_LOCK(0), */
 	/* but this case seems very unlikely. */
@@ -1668,8 +1616,6 @@ Balloc(int k MTd)
 #ifdef MULTIPLE_THREADS
 	if (TI == &TI0)
 		FREE_DTOA_LOCK(0);
-	else
-		unlock_TI(TI, 0);
 #endif
 	rv->sign = rv->wds = 0;
 	return rv;
@@ -1690,16 +1636,12 @@ Bfree(Bigint *v MTd)
 				*PTI = TI = get_TI();
 			if (TI == &TI0)
 				ACQUIRE_DTOA_LOCK(0);
-			else
-				lock_TI(TI, 0);
 #endif
 			v->next = freelist[v->k];
 			freelist[v->k] = v;
 #ifdef MULTIPLE_THREADS
 			if (TI == &TI0)
 				FREE_DTOA_LOCK(0);
-			else
-				unlock_TI(TI, 0);
 #endif
 			}
 		}
@@ -2007,16 +1949,12 @@ pow5mult(Bigint *b, int k MTd)
 			*PTI = TI = get_TI();
 		if (TI == &TI0)
 			ACQUIRE_DTOA_LOCK(1);
-		else
-			lock_TI(TI, 1);
 		if (!(p5 = p5s)) {
 			p5 = p5s = i2b(625 MTa);
 			p5->next = 0;
 			}
 		if (TI == &TI0)
 			FREE_DTOA_LOCK(1);
-		else
-			unlock_TI(TI, 1);
 #else
 		p5 = p5s = i2b(625 MTa);
 		p5->next = 0;
@@ -2036,16 +1974,12 @@ pow5mult(Bigint *b, int k MTd)
 				*PTI = TI = get_TI();
 			if (TI == &TI0)
 				ACQUIRE_DTOA_LOCK(1);
-			else
-				lock_TI(TI, 1);
 			if (!(p51 = p5->next)) {
 				p51 = p5->next = mult(p5,p5 MTa);
 				p51->next = 0;
 				}
 			if (TI == &TI0)
 				FREE_DTOA_LOCK(1);
-			else
-				unlock_TI(TI, 1);
 #else
 			p51 = p5->next = mult(p5,p5);
 			p51->next = 0;
@@ -3475,10 +3409,10 @@ retlow1:
 		if ((j = ((word0(rv) & Exp_mask) >> Exp_shift) - bc->scale) <= 0) {
 			i = 1 - j;
 			if (i <= 31) {
-				if (word1(rv) & (0x1U << i))
+				if (word1(rv) & (0x1 << i))
 					goto odd;
 				}
-			else if (word0(rv) & (0x1U << (i-32)))
+			else if (word0(rv) & (0x1 << (i-32)))
 				goto odd;
 			}
 		else if (word1(rv) & 1) {

@@ -13,7 +13,7 @@
 static inline void fpconv_init()
 {
     // Add one to try and avoid core id multiplier alignment
-    set_dtoa_pool((sysconf(_SC_NPROCESSORS_CONF) + 1) * 3);
+    set_max_dtoa_threads((sysconf(_SC_NPROCESSORS_CONF) + 1) * 3);
 }
 #else
 static inline void fpconv_init()
