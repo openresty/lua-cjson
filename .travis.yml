@@ -46,7 +46,7 @@ install:
     - cd ..
 
 script:
-  - cppcheck -i ./luajit2 -i ./ --force --error-exitcode=1 --enable=warning . > build.log 2>&1 || (cat build.log && exit 1)
+  - cppcheck -i ./luajit2 --force --error-exitcode=1 --enable=warning . > build.log 2>&1 || (cat build.log && exit 1)
   - bash runtests.sh
   - make
   - prove -Itests tests

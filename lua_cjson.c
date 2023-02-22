@@ -657,7 +657,7 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
     comma = 0;
     for (i = 1; i <= array_length; i++) {
         json_pos = strbuf_length(json);
-        if (comma++ == 0)
+        if (comma++ > 0)
             strbuf_append_char(json, ',');
 
         lua_rawgeti(l, -1, i);
@@ -725,7 +725,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
     comma = 0;
     while (lua_next(l, -2) != 0) {
         json_pos = strbuf_length(json);
-        if (comma++ == 0)
+        if (comma++ > 0)
             strbuf_append_char(json, ',');
 
         /* table, key, value */
