@@ -831,7 +831,7 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
         } else {
             json_encode_exception(l, cfg, json, -1, "type not supported");
         }
-        
+
         /* never returns */
     }
     return 0;
