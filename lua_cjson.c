@@ -657,15 +657,17 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
     comma = 0;
     for (i = 1; i <= array_length; i++) {
         json_pos = strbuf_length(json);
-        if (comma)
+        if (comma++ == 0)
             strbuf_append_char(json, ',');
-        else
-            comma = 1;
 
         lua_rawgeti(l, -1, i);
         err = json_append_data(l, cfg, current_depth, json);
-        if (err)
+        if (err) {
             strbuf_set_length(json, json_pos);
+            if (comma == 1) {
+                comma = 0;
+            }
+        }
         lua_pop(l, 1);
     }
 
@@ -723,10 +725,8 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
     comma = 0;
     while (lua_next(l, -2) != 0) {
         json_pos = strbuf_length(json);
-        if (comma)
+        if (comma++ == 0)
             strbuf_append_char(json, ',');
-        else
-            comma = 1;
 
         /* table, key, value */
         keytype = lua_type(l, -2);
@@ -745,8 +745,13 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
 
         /* table, key, value */
         err = json_append_data(l, cfg, current_depth, json);
-        if (err)
+        if (err) {
             strbuf_set_length(json, json_pos);
+            if (comma == 1) {
+                comma = 0;
+            }
+        }
+
         lua_pop(l, 1);
         /* table, key */
     }
@@ -826,7 +831,7 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
     default:
         /* Remaining types (LUA_TFUNCTION, LUA_TUSERDATA, LUA_TTHREAD,
          * and LUA_TLIGHTUSERDATA) cannot be serialised */
-        if (cfg->encode_skip_unsupported_value_types) {
+        if (cfg->encode_skip_unsupported_value_types && current_depth == 0) {
             return 1;
         } else {
             json_encode_exception(l, cfg, json, -1, "type not supported");
