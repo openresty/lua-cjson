@@ -457,6 +457,10 @@ static void json_create_config(lua_State *l)
     int i;
 
     cfg = lua_newuserdata(l, sizeof(*cfg));
+    if (!cfg)
+        abort();
+
+    memset(cfg, 0, sizeof(*cfg));
 
     /* Create GC method to clean up strbuf */
     lua_newtable(l);
