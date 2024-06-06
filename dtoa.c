@@ -3457,6 +3457,7 @@ retlow1:
 		if ((j = ((word0(rv) & Exp_mask) >> Exp_shift) - bc->scale) <= 0) {
 			i = 1 - j;
 			if (i <= 31) {
+				/* cppcheck-suppress integerOverflowCond */
 				if (word1(rv) & (0x1 << i))
 					goto odd;
 				}
@@ -4933,6 +4934,7 @@ nrv_alloc(const char *s, char *s0, size_t s0len, char **rve, int n MTd)
 		s0 = rv_alloc(n MTa);
 	else if (s0len <= n) {
 		rv = 0;
+		/* cppcheck-suppress nullPointerArithmetic */
 		t = rv + n;
 		goto rve_chk;
 		}
@@ -5332,6 +5334,7 @@ dtoa_r(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve, char
 	else if (blen <= i) {
 		buf = 0;
 		if (rve)
+			/* cppcheck-suppress nullPointerArithmetic */
 			*rve = buf + i;
 		return buf;
 		}
@@ -5520,6 +5523,7 @@ dtoa_r(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve, char
 	res3 = p10->b1 * dbhi + (tv3 & 0xffffffffull);
 	res = p10->b0 * dbhi + (tv3>>32) + (res3>>32);
 	be += p10->e - 0x3fe;
+	/* cppcheck-suppress integerOverflowCond */
 	eulp = j1 = be - 54 + ulpadj;
 	if (!(res & 0x8000000000000000ull)) {
 		--be;
