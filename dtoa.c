@@ -1533,12 +1533,18 @@ ThInfo {
 set_max_dtoa_threads(unsigned int n)
 {
 	size_t L;
+	ThInfo *newTI1;
 
 	if (n > maxthreads) {
 		L = n*sizeof(ThInfo);
 		if (TI1) {
-			TI1 = (ThInfo*)REALLOC(TI1, L);
-			memset(TI1 + maxthreads, 0, (n-maxthreads)*sizeof(ThInfo));
+			newTI1 = (ThInfo*)REALLOC(TI1, L);
+			if (newTI1) {
+				TI1 = newTI1;
+				memset(TI1 + maxthreads, 0, (n-maxthreads)*sizeof(ThInfo));
+				}
+			else
+				return;
 			}
 		else {
 			TI1 = (ThInfo*)MALLOC(L);
