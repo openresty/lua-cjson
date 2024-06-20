@@ -24,7 +24,7 @@ This fork of [mpx/lua-cjson](https://github.com/mpx/lua-cjson) is included in
 the [OpenResty](https://openresty.org/) bundle and includes a few bugfixes and
 improvements, especially to facilitate the encoding of empty tables as JSON Arrays.
 
-Please refer to the [lua-cjson documentation](http://www.kyne.com.au/~mark/software/lua-cjson.php)
+Please refer to the [lua-cjson documentation](https://kyne.au/~mark/software/lua-cjson.php)
 for standard usage, this README only provides informations regarding this fork's additions.
 
 See [`mpx/master..openresty/master`](https://github.com/mpx/lua-cjson/compare/master...openresty:master)
