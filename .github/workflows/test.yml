@@ -17,19 +17,22 @@ jobs:
             runtestArgs: "LUA_INCLUDE_DIR=.lua/include/luajit-2.1"
             runtestEnv: "SKIP_CMAKE=1"
 
+    # due to 'luarocks/gh-actions-lua@master' caching,
+    # keep 'runs-on' synced with 'runs-on' from
+    # 'upload' job below
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@master
 
-    - uses: leafo/gh-actions-lua@master
+    - uses: luarocks/gh-actions-lua@master
       env:
         CC: ${{ matrix.cc }}
       with:
         luaVersion: ${{ matrix.luaVersion }}
         luaCompileFlags: CC=${{ matrix.cc }}
 
-    - uses: leafo/gh-actions-luarocks@master
+    - uses: luarocks/gh-actions-luarocks@master
 
     - name: runtests.sh
       env:
@@ -59,3 +62,48 @@ jobs:
       run: |
         luarocks make
 
+  upload:
+    name: Upload Rockspec
+
+    # due to 'luarocks/gh-actions-lua@master' caching,
+    # keep 'runs-on' synced with 'runs-on' from
+    # 'test' job above
+    runs-on: ubuntu-24.04
+
+    needs: test
+    if: ${{ github.repository == 'openresty/lua-cjson' && github.ref_type == 'tag' }}
+
+    steps:
+    - uses: actions/checkout@master
+    - uses: luarocks/gh-actions-lua@master
+    - uses: luarocks/gh-actions-luarocks@master
+    
+    - name: Set environment variable to hold the rockspec name to be uploaded
+      run: |
+        rockspec=$(find *.rockspec | head -n1);
+        echo "ROCKSPEC=${rockspec}" >> "${{ github.env }}";
+    
+    - name: Make sure that tags from GitHub and rockspec are equal
+      run: |
+        rockspec_tag=$(lua -e "dofile(arg[0]); io.write(source.tag);" -- "${{ env.ROCKSPEC }}");
+        github_tag="${{ github.ref_name }}";
+
+        if [[ "${rockspec_tag}" != "${github_tag}" ]];
+        then
+          echo -e "\e[31mTag mismatch\e[0m: GitHub tag (\e[33m${github_tag}\e[0m) != rockspec tag (\e[33m${rockspec_tag}\e[0m)";
+          exit 0;
+        fi;
+    
+    - name: Install dependencies
+      run: |
+        sudo apt install -y libssl-dev;
+        luarocks install luasocket;
+        luarocks install luasec;
+
+    - name: Upload to LuaRocks
+      env:
+        UPLOAD_KEY: "${{ secrets.LUAROCKS_APIKEY }}"
+      run: |
+        echo -e "Uploading rockspec: \e[36m${{ env.ROCKSPEC }}\e[0m";
+        
+        luarocks upload "${{ env.ROCKSPEC }}" "--temp-key" "$UPLOAD_KEY";
