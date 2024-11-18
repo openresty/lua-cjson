@@ -91,7 +91,7 @@ jobs:
         if [[ "${rockspec_tag}" != "${github_tag}" ]];
         then
           echo -e "\e[31mTag mismatch\e[0m: GitHub tag (\e[33m${github_tag}\e[0m) != rockspec tag (\e[33m${rockspec_tag}\e[0m)";
-          exit 0;
+          exit 1;
         fi;
     
     - name: Install dependencies
