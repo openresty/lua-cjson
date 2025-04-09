@@ -164,7 +164,7 @@ void strbuf_resize(strbuf_t *s, size_t len)
     newsize = calculate_new_size(s, len);
 
     if (s->debug > 1) {
-        fprintf(stderr, "strbuf(%) resize: %zd => %zd\n",
+        fprintf(stderr, "strbuf(%p) resize: %zd => %zd\n",
                 s, s->size, newsize);
     }
 
