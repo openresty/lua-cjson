@@ -333,6 +333,34 @@ local cjson_tests = {
       json.decode, { [["\uDB00\uD"]] },
       false, { "Expected value but found invalid unicode escape code at character 2" } },
 
+    -- Test keys sorting
+    { "Set encode_sort_keys(true)",
+      json.encode_sort_keys, { true }, true, { true } },
+    { "Encode empty object with sorting",
+      json.encode, { {} },
+      true, { '{}' } },
+    { "Encode object with sorting",
+      json.encode, { { a = 0, b = 0, ab = 0, [1] = 0, ["$"] = 0, [4] = 0, ["%"] = 0 } },
+      true, { '{"$":0,"%":0,"1":0,"4":0,"a":0,"ab":0,"b":0}' } },
+    { "Encode object with string keys with sorting",
+      json.encode, { { aa = 1, ba = 3, ab = 2, bc = 4, cc = 5 } },
+      true, { '{"aa":1,"ab":2,"ba":3,"bc":4,"cc":5}' } },
+    { "Encode nested objects with sorting",
+      json.encode, { { a = { b = 2, a = 1, c = 3 }, c = 0, b = { b = { a = 0, b = 0 }, a = { a = 0, b = 0 } } } },
+      true, { '{"a":{"a":1,"b":2,"c":3},"b":{"a":{"a":0,"b":0},"b":{"a":0,"b":0}},"c":0}' } },
+    { "Encode array of objects with sorting",
+      json.encode, { {
+          { a = 0, [1] = 0, [4] = 0, b = 0 },
+          { f = 0, [5] = 0, [10] = 0, x = 0 },
+          { c = 0, [-2] = 0, [2] = 0, d = 0 },
+      } },
+      true, { '[{"1":0,"4":0,"a":0,"b":0},{"10":0,"5":0,"f":0,"x":0},{"-2":0,"2":0,"c":0,"d":0}]' } },
+    { "Encode object with unicode keys",
+      json.encode, { { ["é"] = 1, ["a"] = 2, ["ß"] = 3, ["中"] = 4 } },
+      true, { '{"a":2,"ß":3,"é":1,"中":4}' } },
+    { "Set encode_sort_keys(false)",
+      json.encode_sort_keys, { false }, true, { false } },
+
     -- Test locale support
     --
     -- The standard Lua interpreter is ANSI C online doesn't support locales

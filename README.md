@@ -16,6 +16,7 @@ Table of Contents
     * [encode_number_precision](#encode_number_precision)
     * [encode_escape_forward_slash](#encode_escape_forward_slash)
     * [encode_skip_unsupported_value_types](#encode_skip_unsupported_value_types)
+    * [encode_sort_keys](#encode_sort_keys)
     * [decode_array_with_array_mt](#decode_array_with_array_mt)
 
 Description
@@ -198,6 +199,16 @@ This will generate:
 ```json
 {"key":"val"}
 ```
+
+[Back to TOC](#table-of-contents)
+
+encode_sort_keys
+---------------------------
+**syntax:** `cjson.encode_sort_keys(enabled)`
+
+**default:** false
+
+If enabled, keys in encoded objects will be sorted in alphabetical order.
 
 [Back to TOC](#table-of-contents)
 
