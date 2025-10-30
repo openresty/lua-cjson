@@ -91,6 +91,7 @@
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
 #define DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH 1
 #define DEFAULT_ENCODE_SKIP_UNSUPPORTED_VALUE_TYPES 0
+#define DEFAULT_ENCODE_INDENT NULL
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -172,6 +173,7 @@ typedef struct {
     int encode_keep_buffer;
     int encode_empty_table_as_object;
     int encode_escape_forward_slash;
+    const char *encode_indent;
 
     int decode_invalid_numbers;
     int decode_max_depth;
@@ -310,6 +312,18 @@ static int json_enum_option(lua_State *l, int optindex, int *setting,
     return 1;
 }
 
+/* Process string option for a configuration function */
+static int json_string_option(lua_State *l, int optindex, const char **setting)
+{
+    if (!lua_isnil(l, optindex)) {
+        const char *value = luaL_checkstring(l, optindex);
+        *setting = value;
+    }
+
+    lua_pushstring(l, *setting ? *setting : "");
+    return 1;
+}
+
 /* Configures handling of extremely sparse arrays:
  * convert: Convert extremely sparse arrays into objects? Otherwise error.
  * ratio: 0: always allow sparse; 1: never allow sparse; >1: use ratio
@@ -396,6 +410,18 @@ static int json_cfg_encode_keep_buffer(lua_State *l)
         else
             strbuf_free(&cfg->encode_buf);
     }
+
+    return 1;
+}
+
+/* Configure how to indent output */
+static int json_cfg_encode_indent(lua_State *l)
+{
+    json_config_t *cfg = json_arg_init(l, 1);
+
+    json_string_option(l, 1, &cfg->encode_indent);
+    /* simplify further checking */
+    if (cfg->encode_indent[0] == '\0') cfg->encode_indent = NULL;
 
     return 1;
 }
@@ -491,6 +517,7 @@ static void json_create_config(lua_State *l)
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
     cfg->encode_skip_unsupported_value_types = DEFAULT_ENCODE_SKIP_UNSUPPORTED_VALUE_TYPES;
+    cfg->encode_indent = DEFAULT_ENCODE_INDENT;
 
 #if DEFAULT_ENCODE_KEEP_BUFFER > 0
     strbuf_init(&cfg->encode_buf, 0);
@@ -660,6 +687,13 @@ static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
 static int json_append_data(lua_State *l, json_config_t *cfg,
                              int current_depth, strbuf_t *json);
 
+static void json_append_newline_and_indent(strbuf_t *json, json_config_t *cfg, int depth)
+{
+    strbuf_append_char(json, '\n');
+    for (int i = 0; i < depth; i++)
+        strbuf_append_string(json, cfg->encode_indent);
+}
+
 /* json_append_array args:
  * - lua_State
  * - JSON strbuf
@@ -668,14 +702,20 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
                               strbuf_t *json, int array_length, int raw)
 {
     int comma, i, json_pos, err;
+    int has_items = 0;
 
     strbuf_append_char(json, '[');
 
     comma = 0;
     for (i = 1; i <= array_length; i++) {
+        has_items = 1;
+
         json_pos = strbuf_length(json);
         if (comma++ > 0)
             strbuf_append_char(json, ',');
+
+        if (cfg->encode_indent)
+            json_append_newline_and_indent(json, cfg, current_depth);
 
         if (raw) {
             lua_rawgeti(l, -1, i);
@@ -697,6 +737,9 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
         }
         lua_pop(l, 1);
     }
+
+    if (has_items && cfg->encode_indent)
+        json_append_newline_and_indent(json, cfg, current_depth-1);
 
     strbuf_append_char(json, ']');
 }
@@ -752,6 +795,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
                                int current_depth, strbuf_t *json)
 {
     int comma, keytype, json_pos, err;
+    int has_items = 0;
 
     /* Object */
     strbuf_append_char(json, '{');
@@ -760,9 +804,14 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
     /* table, startkey */
     comma = 0;
     while (lua_next(l, -2) != 0) {
+        has_items = 1;
+
         json_pos = strbuf_length(json);
         if (comma++ > 0)
             strbuf_append_char(json, ',');
+
+        if (cfg->encode_indent)
+            json_append_newline_and_indent(json, cfg, current_depth);
 
         /* table, key, value */
         keytype = lua_type(l, -2);
@@ -778,6 +827,9 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
                                   "table key must be a number or string");
             /* never returns */
         }
+        if (cfg->encode_indent)
+            strbuf_append_char(json, ' ');
+
 
         /* table, key, value */
         err = json_append_data(l, cfg, current_depth, json);
@@ -791,6 +843,9 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
         lua_pop(l, 1);
         /* table, key */
     }
+
+    if (has_items && cfg->encode_indent)
+        json_append_newline_and_indent(json, cfg, current_depth-1);
 
     strbuf_append_char(json, '}');
 }
@@ -1579,6 +1634,7 @@ static int lua_cjson_new(lua_State *l)
         { "decode_invalid_numbers", json_cfg_decode_invalid_numbers },
         { "encode_escape_forward_slash", json_cfg_encode_escape_forward_slash },
         { "encode_skip_unsupported_value_types", json_cfg_encode_skip_unsupported_value_types },
+        { "encode_indent", json_cfg_encode_indent },
         { "new", lua_cjson_new },
         { NULL, NULL }
     };

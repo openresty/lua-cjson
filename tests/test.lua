@@ -333,6 +333,44 @@ local cjson_tests = {
       json.decode, { [["\uDB00\uD"]] },
       false, { "Expected value but found invalid unicode escape code at character 2" } },
 
+    -- Test indenting
+    { 'Set encode_indent("  ")',
+      json.encode_indent, { "  " }, true, { "  " } },
+    { "Encode object with indenting",
+      json.encode, { { a = "a", b = "b" } },
+      true, {
+          util.one_of {
+              '{\n  "a": "a",\n  "b": "b"\n}',
+              '{\n  "b": "b",\n  "a": "a"\n}',
+          }
+      } },
+    { "Encode empty object with indenting",
+      json.encode, { { } }, true, { '{}' } },
+    { "Encode nested object with indenting",
+      json.encode, { { a = { b = 1 } } },
+      true, { '{\n  "a": {\n    "b": 1\n  }\n}' } },
+    { "Encode array with indenting",
+      json.encode, { { 1, 2, 3 } },
+      true, { '[\n  1,\n  2,\n  3\n]' } },
+    { "Encode empty array with indenting",
+      json.encode, { json.empty_array }, true, { '[]' } },
+    { "Encode nested arrays with indenting",
+      json.encode, { { { 1, 2 }, { 3, 4 } } },
+      true, { '[\n  [\n    1,\n    2\n  ],\n  [\n    3,\n    4\n  ]\n]' } },
+    { "Encode array of objects with indenting",
+      json.encode, { { { a = "a" }, { b = "b" } } },
+      true, { '[\n  {\n    "a": "a"\n  },\n  {\n    "b": "b"\n  }\n]' } },
+    { 'Set encode_indent("abc")',
+      json.encode_indent, { "abc" }, true, { "abc" } },
+    { "Encode object with non-whitespace indenting",
+      json.encode, { { a = { b = 1 } } },
+      true, { '{\nabc"a": {\nabcabc"b": 1\nabc}\n}' } },
+    { 'Set encode_indent("")',
+      json.encode_indent, { "" }, true, { "" } },
+    { "Encode array of objects with empty indenting",
+      json.encode, { { { a = "a" }, { b = "b" } } },
+      true, { '[{"a":"a"},{"b":"b"}]' } },
+
     -- Test locale support
     --
     -- The standard Lua interpreter is ANSI C online doesn't support locales
