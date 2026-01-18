@@ -202,10 +202,12 @@ int fpconv_g_fmt(char *str, double num, int precision)
     return len;
 }
 
+#ifndef USE_INTERNAL_FPCONV
 void fpconv_init(void)
 {
     fpconv_update_locale();
 }
+#endif
 
 /* vi:ai et sw=4 ts=4:
  */
