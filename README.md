@@ -16,6 +16,7 @@ Table of Contents
     * [encode_number_precision](#encode_number_precision)
     * [encode_escape_forward_slash](#encode_escape_forward_slash)
     * [encode_skip_unsupported_value_types](#encode_skip_unsupported_value_types)
+    * [encode_indent](#encode_indent)
     * [decode_array_with_array_mt](#decode_array_with_array_mt)
 
 Description
@@ -197,6 +198,31 @@ This will generate:
 
 ```json
 {"key":"val"}
+```
+
+[Back to TOC](#table-of-contents)
+
+encode_indent
+----------------------------
+**syntax:** `cjson.encode_indent(indent)`
+
+If non-empty string provided, JSON values encoded by `cjson.encode()` will be
+formatted in a human-readable way, using `indent` for indentation
+at each nesting level. Also enables newlines and a space after colons.
+
+Example:
+
+```lua
+local cjson = require "cjson"
+
+cjson.encode_indent("  ")
+print(cjson.encode({ a = 1, b = { c = 2 } }))
+-- {
+--   "a": 1,
+--   "b": {
+--     "c": 2
+--   }
+-- }
 ```
 
 [Back to TOC](#table-of-contents)
