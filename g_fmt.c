@@ -58,7 +58,11 @@ fpconv_g_fmt(char *b, double x, int precision)
 		b--;
 		goto done0;
 		}
+#ifdef USE_ECMA_262
+	if (decpt <= -6 || decpt > 21) {
+#else
 	if (decpt <= -4 || decpt > precision) {
+#endif
 		*b++ = *s++;
 		if (*s) {
 			*b++ = '.';
@@ -106,6 +110,13 @@ fpconv_g_fmt(char *b, double x, int precision)
 	freedtoa(s0);
 #ifdef IGNORE_ZERO_SIGN
  done:
+#endif
+#ifdef USE_ECMA_262
+	int len = b - b0;
+	if (len >= 4 && b0[len - 4] == 'e' && b0[len-3] == '-' && b0[len-2] == '0') {
+		b0[len-2] = b0[len - 1];
+		*--b = 0;
+	}
 #endif
 	return b - b0;
 	}
