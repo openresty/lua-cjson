@@ -89,6 +89,7 @@
 #define DEFAULT_ENCODE_NUMBER_PRECISION 14
 #define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
+#define DEFAULT_DECODE_ALLOW_COMMENTS 0
 #define DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH 1
 #define DEFAULT_ENCODE_SKIP_UNSUPPORTED_VALUE_TYPES 0
 #define DEFAULT_ENCODE_INDENT NULL
@@ -178,6 +179,7 @@ typedef struct {
     int decode_invalid_numbers;
     int decode_max_depth;
     int decode_array_with_array_mt;
+    int decode_allow_comments;
     int encode_skip_unsupported_value_types;
 } json_config_t;
 
@@ -383,6 +385,16 @@ static int json_cfg_decode_array_with_array_mt(lua_State *l)
     return 1;
 }
 
+/* Configures whether decoder allows comments */
+static int json_cfg_decode_allow_comments(lua_State *l)
+{
+    json_config_t *cfg = json_arg_init(l, 1);
+
+    json_enum_option(l, 1, &cfg->decode_allow_comments, NULL, 1);
+
+    return 1;
+}
+
 /* Configure how to treat invalid types */
 static int json_cfg_encode_skip_unsupported_value_types(lua_State *l)
 {
@@ -515,6 +527,7 @@ static void json_create_config(lua_State *l)
     cfg->encode_number_precision = DEFAULT_ENCODE_NUMBER_PRECISION;
     cfg->encode_empty_table_as_object = DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT;
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
+    cfg->decode_allow_comments = DEFAULT_DECODE_ALLOW_COMMENTS;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
     cfg->encode_skip_unsupported_value_types = DEFAULT_ENCODE_SKIP_UNSUPPORTED_VALUE_TYPES;
     cfg->encode_indent = DEFAULT_ENCODE_INDENT;
@@ -1279,13 +1292,46 @@ static void json_next_token(json_parse_t *json, json_token_t *token)
     const json_token_type_t *ch2token = json->cfg->ch2token;
     int ch;
 
-    /* Eat whitespace. */
     while (1) {
-        ch = (unsigned char)*(json->ptr);
-        token->type = ch2token[ch];
-        if (token->type != T_WHITESPACE)
+        /* Eat whitespace. */
+        while (1) {
+            ch = (unsigned char)*(json->ptr);
+            token->type = ch2token[ch];
+            if (token->type != T_WHITESPACE)
+                break;
+            json->ptr++;
+        }
+
+        if (!json->cfg->decode_allow_comments)
             break;
-        json->ptr++;
+
+        /* Eat comments. */
+        if ((unsigned char)json->ptr[0] != '/' ||
+            ((unsigned char)json->ptr[1] != '/' &&
+            (unsigned char)json->ptr[1] != '*')) {
+            break;
+        }
+
+        if (json->ptr[1] == '/') {
+            /* Handle single-line comment */
+            json->ptr += 2;
+            while (*json->ptr != '\0' && *json->ptr != '\n')
+                json->ptr++;
+        } else {
+            /* Handle multi-line comment */
+            json->ptr += 2;
+            while (1) {
+                if (*json->ptr == '\0') {
+                    json_set_token_error(token, json, "unclosed multi-line comment");
+                    return;
+                }
+                if (json->ptr[0] == '*' && json->ptr[1] == '/') {
+                    json->ptr += 2;
+                    break;
+                }
+                json->ptr++;
+            }
+        }
     }
 
     /* Store location of new token. Required when throwing errors
@@ -1625,6 +1671,7 @@ static int lua_cjson_new(lua_State *l)
         { "decode", json_decode },
         { "encode_empty_table_as_object", json_cfg_encode_empty_table_as_object },
         { "decode_array_with_array_mt", json_cfg_decode_array_with_array_mt },
+        { "decode_allow_comments", json_cfg_decode_allow_comments },
         { "encode_sparse_array", json_cfg_encode_sparse_array },
         { "encode_max_depth", json_cfg_encode_max_depth },
         { "decode_max_depth", json_cfg_decode_max_depth },

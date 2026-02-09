@@ -262,3 +262,16 @@ cjson.encode(t) -- {"my_array":[]} properly re-encoded as an array
 ```
 
 [Back to TOC](#table-of-contents)
+
+decode_allow_comments
+--------------------------
+**syntax:** `cjson.decode_allow_comments(enabled)`
+
+**default:** false
+
+If enabled, allows JavaScript-style comments in `cjson.decode` input. Comments
+are treated as whitespace and may appear anywhere whitespace is valid in JSON.
+Supports single-line comments beginning with '//' and block comments enclosed
+with '/* ... */'.
+
+[Back to TOC](#table-of-contents)
