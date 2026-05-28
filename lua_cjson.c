@@ -433,7 +433,7 @@ static int json_cfg_encode_indent(lua_State *l)
 
     json_string_option(l, 1, &cfg->encode_indent);
     /* simplify further checking */
-    if (cfg->encode_indent[0] == '\0') cfg->encode_indent = NULL;
+    if (cfg->encode_indent && cfg->encode_indent[0] == '\0') cfg->encode_indent = NULL;
 
     return 1;
 }
