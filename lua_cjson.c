@@ -38,6 +38,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
@@ -314,18 +315,6 @@ static int json_enum_option(lua_State *l, int optindex, int *setting,
     return 1;
 }
 
-/* Process string option for a configuration function */
-static int json_string_option(lua_State *l, int optindex, const char **setting)
-{
-    if (!lua_isnil(l, optindex)) {
-        const char *value = luaL_checkstring(l, optindex);
-        *setting = value;
-    }
-
-    lua_pushstring(l, *setting ? *setting : "");
-    return 1;
-}
-
 /* Configures handling of extremely sparse arrays:
  * convert: Convert extremely sparse arrays into objects? Otherwise error.
  * ratio: 0: always allow sparse; 1: never allow sparse; >1: use ratio
@@ -431,9 +420,30 @@ static int json_cfg_encode_indent(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
 
-    json_string_option(l, 1, &cfg->encode_indent);
-    /* simplify further checking */
-    if (cfg->encode_indent[0] == '\0') cfg->encode_indent = NULL;
+    if (!lua_isnil(l, 1)) {
+        size_t len;
+        const char *value = luaL_checklstring(l, 1, &len);
+        char *copy = NULL;
+
+        /* The supplied string belongs to Lua and may be garbage collected
+         * once this function returns.  Keep a private copy owned by cfg so
+         * the pointer remains valid for later encode() calls. */
+        if (len > 0) {
+            copy = (char *) malloc(len + 1);
+            if (!copy)
+                luaL_error(l, "Out of memory");
+            memcpy(copy, value, len);
+            copy[len] = '\0';
+        }
+
+        if (cfg->encode_indent)
+            free((void *) cfg->encode_indent);
+
+        /* simplify further checking: empty string => NULL */
+        cfg->encode_indent = copy;
+    }
+
+    lua_pushstring(l, cfg->encode_indent ? cfg->encode_indent : "");
 
     return 1;
 }
@@ -492,8 +502,13 @@ static int json_destroy_config(lua_State *l)
     json_config_t *cfg;
 
     cfg = (json_config_t *)lua_touserdata(l, 1);
-    if (cfg)
+    if (cfg) {
         strbuf_free(&cfg->encode_buf);
+        if (cfg->encode_indent) {
+            free((void *) cfg->encode_indent);
+            cfg->encode_indent = NULL;
+        }
+    }
     cfg = NULL;
 
     return 0;
