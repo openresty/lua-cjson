@@ -162,6 +162,12 @@ typedef struct {
     json_token_type_t ch2token[256];
     char escape2char[256];  /* Decoding */
 
+    /* Per-config encoding escape table. Initialised from the global
+     * char2escape template, then customised per instance (e.g. by
+     * encode_escape_forward_slash) so that one cjson instance's settings
+     * never leak into another. */
+    const char *char2escape[256];
+
     /* encode_buf is only allocated and used when
      * encode_keep_buffer is set */
     strbuf_t encode_buf;
@@ -204,7 +210,10 @@ typedef struct {
     size_t string_len;
 } json_token_t;
 
-static const char *char2escape[256] = {
+/* Read-only template used to initialise each config's char2escape table.
+ * Per-instance customisation happens on json_config_t.char2escape, never
+ * here. */
+static const char *char2escape_template[256] = {
     "\\u0000", "\\u0001", "\\u0002", "\\u0003",
     "\\u0004", "\\u0005", "\\u0006", "\\u0007",
     "\\b", "\\t", "\\n", "\\u000b",
@@ -490,9 +499,9 @@ static int json_cfg_encode_escape_forward_slash(lua_State *l)
 
     ret = json_enum_option(l, 1, &cfg->encode_escape_forward_slash, NULL, 1);
     if (cfg->encode_escape_forward_slash) {
-        char2escape['/'] = "\\/";
+        cfg->char2escape['/'] = "\\/";
     } else {
-        char2escape['/'] = NULL;
+        cfg->char2escape['/'] = NULL;
     }
     return ret;
 }
@@ -546,6 +555,14 @@ static void json_create_config(lua_State *l)
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
     cfg->encode_skip_unsupported_value_types = DEFAULT_ENCODE_SKIP_UNSUPPORTED_VALUE_TYPES;
     cfg->encode_indent = DEFAULT_ENCODE_INDENT;
+
+    /* Seed this instance's escape table from the shared template, then
+     * apply the per-instance forward-slash setting. Mutating cfg->char2escape
+     * (instead of a global) keeps each cjson instance independent. */
+    memcpy(cfg->char2escape, char2escape_template, sizeof(cfg->char2escape));
+    if (!cfg->encode_escape_forward_slash) {
+        cfg->char2escape['/'] = NULL;
+    }        
 
 #if DEFAULT_ENCODE_KEEP_BUFFER > 0
     strbuf_init(&cfg->encode_buf, 0);
@@ -614,7 +631,8 @@ static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *js
  * - String (Lua stack index)
  *
  * Returns nothing. Doesn't remove string from Lua stack */
-static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
+static void json_append_string(lua_State *l, json_config_t *cfg,
+                               strbuf_t *json, int lindex)
 {
     const char *escstr;
     const char *str;
@@ -633,7 +651,7 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
 
     strbuf_append_char_unsafe(json, '\"');
     for (i = 0; i < len; i++) {
-        escstr = char2escape[(unsigned char)str[i]];
+        escstr = cfg->char2escape[(unsigned char)str[i]];
         if (escstr)
             strbuf_append_string(json, escstr);
         else
@@ -848,7 +866,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg,
             json_append_number(l, cfg, json, -2);
             strbuf_append_mem(json, "\":", 2);
         } else if (keytype == LUA_TSTRING) {
-            json_append_string(l, json, -2);
+            json_append_string(l, cfg, json, -2);
             strbuf_append_char(json, ':');
         } else {
             json_encode_exception(l, cfg, json, -2,
@@ -889,7 +907,7 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
 
     switch (lua_type(l, -1)) {
     case LUA_TSTRING:
-        json_append_string(l, json, -1);
+        json_append_string(l, cfg, json, -1);
         break;
     case LUA_TNUMBER:
         json_append_number(l, cfg, json, -1);
