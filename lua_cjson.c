@@ -115,7 +115,9 @@
 #endif
 
 #if LUA_VERSION_NUM >= 502
+#ifndef lua_objlen
 #define lua_objlen(L,i)		luaL_len(L, (i))
+#endif
 #endif
 
 static const char * const *json_empty_array;
