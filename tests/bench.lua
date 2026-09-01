@@ -68,7 +68,8 @@ function benchmark(tests, seconds, rep)
     end
 
     local test_results = {}
-    for name, func in pairs(tests) do
+    for k, v in pairs(tests) do
+        local name, func = k, v
         -- k(number), v(string)
         -- k(string), v(function)
         -- k(number), v(function)
