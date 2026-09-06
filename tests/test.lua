@@ -422,6 +422,73 @@ local cjson_tests = {
     { "Encode object with unicode keys",
       json.encode, { { ["é"] = 1, ["a"] = 2, ["ß"] = 3, ["中"] = 4 } },
       true, { '{"a":2,"ß":3,"é":1,"中":4}' } },
+    { "Encode escaped object keys with sorting",
+      json.encode, { { ["/"] = 1, ["0"] = 2 } },
+      true, { [[{"\/":1,"0":2}]] } },
+    { "Encode fractional numeric key with sorting",
+      json.encode, { { [1.5] = "fraction" } },
+      true, { '{"1.5":"fraction"}' } },
+    { "Sort colliding numeric keys independently of insertion order", function()
+        local encoder = json.new()
+        encoder.encode_sort_keys(true)
+        encoder.encode_number_precision(1)
+        local forward = { z = true }
+        forward[1.1] = "first"
+        forward[1.2] = "second"
+        local reverse = { z = true }
+        reverse[1.2] = "second"
+        reverse[1.1] = "first"
+
+        return encoder.encode(forward), encoder.encode(reverse)
+      end, { }, true, {
+          '{"1":"first","1":"second","z":true}',
+          '{"1":"first","1":"second","z":true}'
+      } },
+    { "Sort colliding integer, fractional and string keys", function()
+        local encoder = json.new()
+        encoder.encode_sort_keys(true)
+        encoder.encode_number_precision(1)
+        local data = { ["1"] = "string" }
+        data[1.1] = "fraction"
+        data[1] = "integer"
+
+        return encoder.encode(data)
+      end, { }, true, {
+          '{"1":"integer","1":"fraction","1":"string"}'
+      } },
+    { "Encode binary string key with sorting",
+      json.encode, { { ["a\0b"] = "nul" } },
+      true, { '{"a\\u0000b":"nul"}' } },
+    { "Encode large integer key with sorting", function()
+        if math.type and math.type(9007199254740993) == "integer" then
+            return json.encode({ [9007199254740993] = "large", z = true })
+        end
+
+        return "Lua integers not supported"
+      end, { }, true, {
+          math.type and math.type(9007199254740993) == "integer"
+              and '{"9007199254740993":"large","z":true}'
+              or "Lua integers not supported"
+      } },
+    { "Reuse key buffer after encoding a large object", function()
+        local data = {}
+        for i = 1, 257 do
+            data["key" .. i] = i
+        end
+
+        local decoded = json.decode(json.encode(data))
+        return decoded.key1, decoded.key257, json.encode({ again = true })
+      end, { }, true, { 1, 257, '{"again":true}' } },
+    { "Set encode_keep_buffer(false) with sorting",
+      json.encode_keep_buffer, { false }, true, { false } },
+    { "Encode invalid numeric key with sorting [throw error]",
+      json.encode, { { [Inf] = true } },
+      false, { "Cannot serialise number: must not be NaN or Infinity" } },
+    { "Encode after invalid numeric key with sorting",
+      json.encode, { { again = true } },
+      true, { '{"again":true}' } },
+    { "Set encode_keep_buffer(true) with sorting",
+      json.encode_keep_buffer, { true }, true, { true } },
     { "Set encode_sort_keys(false)",
       json.encode_sort_keys, { false }, true, { false } },
 

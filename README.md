@@ -235,7 +235,8 @@ encode_sort_keys
 
 **default:** false
 
-If enabled, keys in encoded objects will be sorted in alphabetical order.
+If enabled, keys in encoded objects will be sorted lexicographically before
+JSON string escaping is applied.
 
 [Back to TOC](#table-of-contents)
 
