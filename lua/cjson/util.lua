@@ -226,7 +226,18 @@ local function run_test(testname, func, input, should_work, output)
     end
 
     local result = {}
-    local tmp = { pcall(func, unpack(input)) }
+    -----------------------------------------------------------
+    -- works with Lua 5.4.x and 5.5.0
+    -- See also https://groups.google.com/g/lua-l/c/9CK0KhdeJRY
+    local input_len = 0
+    for k in pairs(input) do
+       if type(k) == "number" and k > input_len then input_len = k end
+    end
+    local tmp = { pcall(func, unpack(input, 1, input_len)) }
+    -----------------------------------------------------------
+    -- does not work with Lua 5.5.0
+    -- local tmp = { pcall(func, unpack(input)) }
+    -----------------------------------------------------------
     local success = tmp[1]
     for i = 2, maxn(tmp) do
         result[i - 1] = tmp[i]
