@@ -826,7 +826,8 @@ static void json_append_newline_and_indent(strbuf_t *json, json_config_t *cfg, i
 static void json_append_array(lua_State *l, json_config_t *cfg, int current_depth,
                               strbuf_t *json, int array_length, int raw)
 {
-    int comma, i, json_pos, err;
+    int comma, i, err;
+    size_t json_pos;
     int has_items = 0;
 
     strbuf_append_char(json, '[');
@@ -1024,7 +1025,8 @@ static int cmp_key_entries(const void *a, const void *b)
 static void json_append_object(lua_State *l, json_config_t *cfg,
                                int current_depth, strbuf_t *json)
 {
-    int comma, keytype, json_pos, err;
+    int comma, keytype, err;
+    size_t json_pos;
     int has_items = 0;
     keybuf_t *keybuf;
     key_entry_t key_entry;
