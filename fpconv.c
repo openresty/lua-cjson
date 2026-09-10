@@ -97,7 +97,7 @@ static inline int valid_number_character(char ch)
 
 /* Calculate the size of the buffer required for a strtod locale
  * conversion. */
-static int strtod_buffer_size(const char *s)
+static size_t strtod_buffer_size(const char *s)
 {
     const char *p = s;
 
@@ -113,7 +113,7 @@ double fpconv_strtod(const char *nptr, char **endptr)
 {
     char localbuf[FPCONV_G_FMT_BUFSIZE];
     char *buf, *endbuf, *dp;
-    int buflen;
+    size_t buflen;
     double value;
 
     /* System strtod() is fine when decimal point is '.' */
