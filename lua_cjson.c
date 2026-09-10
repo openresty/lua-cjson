@@ -37,6 +37,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1585,9 +1586,14 @@ static int json_is_invalid_number(json_parse_t *json)
 static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
     char *endptr;
-    long long tmpval = strtoll(json->ptr, &endptr, 10);
-    if (json->ptr == endptr || *endptr == '.' || *endptr == 'e' ||
-        *endptr == 'E' || *endptr == 'x') {
+    long long tmpval;
+
+    errno = 0;
+    tmpval = strtoll(json->ptr, &endptr, 10);
+    /* Reparse overflowing integers as doubles instead of using the
+     * saturated value returned by strtoll(). */
+    if (errno == ERANGE || json->ptr == endptr || *endptr == '.' ||
+        *endptr == 'e' || *endptr == 'E' || *endptr == 'x') {
         token->type = T_NUMBER;
         token->value.number = fpconv_strtod(json->ptr, &endptr);
         if (json->ptr == endptr) {
