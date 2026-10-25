@@ -704,6 +704,8 @@ static void json_append_string_contents(lua_State *l, json_config_t *cfg,
     const char *str;
     size_t len;
     size_t i;
+    char *start;
+    char *out;
 
     str = lua_tolstring(l, lindex, &len);
 
@@ -715,13 +717,26 @@ static void json_append_string_contents(lua_State *l, json_config_t *cfg,
         abort(); /* Overflow check */
     strbuf_ensure_empty_length(json, len * 6);
 
+    /* Write straight into the reserved space: an escape is either two bytes
+     * long or "\u00XX", so the loop needs no length bookkeeping. */
+    start = strbuf_empty_ptr(json);
+    out = start;
+
     for (i = 0; i < len; i++) {
-        escstr = cfg->char2escape[(unsigned char)str[i]];
-        if (escstr)
-            strbuf_append_string(json, escstr);
-        else
-            strbuf_append_char_unsafe(json, str[i]);
+        unsigned char c = (unsigned char)str[i];
+        escstr = cfg->char2escape[c];
+        if (!escstr) {
+            *out++ = (char)c;
+        } else if (escstr[1] == 'u') {
+            memcpy(out, escstr, 6);
+            out += 6;
+        } else {
+            out[0] = escstr[0];
+            out[1] = escstr[1];
+            out += 2;
+        }
     }
+    strbuf_extend_length(json, (size_t)(out - start));
 }
 
 /* json_append_string args:
@@ -1475,6 +1490,8 @@ static void json_next_string_token(json_parse_t *json, json_token_t *token)
 {
     char *escape2char = json->cfg->escape2char;
     char ch;
+    char *dst;
+    const char *p;
 
     /* Caller must ensure a string is next */
     assert(*json->ptr == '"');
@@ -1482,15 +1499,38 @@ static void json_next_string_token(json_parse_t *json, json_token_t *token)
     /* Skip " */
     json->ptr++;
 
+    /* Fast path: a string without escape sequences can be handed to Lua as a
+     * slice of the input, skipping the copy through json->tmp.  This is the
+     * common case (keys and most values). */
+    {
+        const char *start = json->ptr;
+        p = start;
+        while (*p != '"' && *p != '\\' && *p != '\0')
+            p++;
+
+        if (*p == '"') {
+            json->ptr = (char *)p + 1;  /* Eat final quote (") */
+            token->type = T_STRING;
+            token->value.string = start;
+            token->string_len = (size_t)(p - start);
+            return;
+        }
+        /* Escapes present, or premature end: use the copying path below. */
+    }
+
     /* json->tmp is the temporary strbuf used to accumulate the
      * decoded string value.
      * json->tmp is sized to handle JSON containing only a string value.
      */
     strbuf_reset(json->tmp);
 
-    while ((ch = *json->ptr) != '"') {
+    dst = json->tmp->buf;
+    p = json->ptr;
+
+    while ((ch = *p) != '"') {
         if (!ch) {
             /* Premature end of the string */
+            json->ptr = (char *)p;
             json_set_token_error(token, json, "unexpected end of string");
             return;
         }
@@ -1498,32 +1538,39 @@ static void json_next_string_token(json_parse_t *json, json_token_t *token)
         /* Handle escapes */
         if (ch == '\\') {
             /* Fetch escape character */
-            ch = *(json->ptr + 1);
+            ch = *(p + 1);
 
             /* Translate escape code and append to tmp string */
             ch = escape2char[(unsigned char)ch];
             if (ch == 'u') {
-                if (json_append_unicode_escape(json) == 0)
+                json->ptr = (char *)p;
+                json->tmp->length = (size_t)(dst - json->tmp->buf);
+                if (json_append_unicode_escape(json) == 0) {
+                    p = json->ptr;
+                    dst = json->tmp->buf + json->tmp->length;
                     continue;
+                }
 
                 json_set_token_error(token, json,
                                      "invalid unicode escape code");
                 return;
             }
             if (!ch) {
+                json->ptr = (char *)p;
                 json_set_token_error(token, json, "invalid escape code");
                 return;
             }
 
             /* Skip '\' */
-            json->ptr++;
+            p++;
         }
         /* Append normal character or translated single character
          * Unicode escapes are handled above */
-        strbuf_append_char_unsafe(json->tmp, ch);
-        json->ptr++;
+        *dst++ = ch;
+        p++;
     }
-    json->ptr++;    /* Eat final quote (") */
+    json->ptr = (char *)p + 1;    /* Eat final quote (") */
+    json->tmp->length = (size_t)(dst - json->tmp->buf);
 
     strbuf_ensure_null(json->tmp);
 
@@ -1793,9 +1840,13 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
         /* Push key */
         lua_pushlstring(l, token.value.string, token.string_len);
 
-        json_next_token(json, &token);
-        if (token.type != T_COLON)
-            json_throw_parse_error(l, json, "colon", &token);
+        if (*json->ptr == ':') {
+            json->ptr++;
+        } else {
+            json_next_token(json, &token);
+            if (token.type != T_COLON)
+                json_throw_parse_error(l, json, "colon", &token);
+        }
 
         /* Fetch value */
         json_next_token(json, &token);
@@ -1804,15 +1855,19 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
         /* Set key = value */
         lua_rawset(l, -3);
 
-        json_next_token(json, &token);
+        if (*json->ptr == ',') {
+            json->ptr++;
+        } else {
+            json_next_token(json, &token);
 
-        if (token.type == T_OBJ_END) {
-            json_decode_ascend(json);
-            return;
+            if (token.type == T_OBJ_END) {
+                json_decode_ascend(json);
+                return;
+            }
+
+            if (token.type != T_COMMA)
+                json_throw_parse_error(l, json, "comma or object end", &token);
         }
-
-        if (token.type != T_COMMA)
-            json_throw_parse_error(l, json, "comma or object end", &token);
 
         json_next_token(json, &token);
     }
@@ -1849,15 +1904,19 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
         json_process_value(l, json, &token);
         lua_rawseti(l, -2, i);            /* arr[i] = value */
 
-        json_next_token(json, &token);
+        if (*json->ptr == ',') {
+            json->ptr++;
+        } else {
+            json_next_token(json, &token);
 
-        if (token.type == T_ARR_END) {
-            json_decode_ascend(json);
-            return;
+            if (token.type == T_ARR_END) {
+                json_decode_ascend(json);
+                return;
+            }
+
+            if (token.type != T_COMMA)
+                json_throw_parse_error(l, json, "comma or array end", &token);
         }
-
-        if (token.type != T_COMMA)
-            json_throw_parse_error(l, json, "comma or array end", &token);
 
         json_next_token(json, &token);
     }
