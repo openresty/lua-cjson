@@ -869,6 +869,56 @@ static void json_append_array(lua_State *l, json_config_t *cfg, int current_dept
     strbuf_append_char(json, ']');
 }
 
+/* Format a signed decimal integer into buf (at least 24 bytes) and return
+ * its length. */
+static int json_format_integer(char *buf, long long value)
+{
+    int len = 0;
+    int start;
+    int i;
+    int j;
+    unsigned long long u;
+
+    if (value < 0) {
+        buf[len++] = '-';
+        u = (unsigned long long)(-(value + 1)) + 1;
+    } else {
+        u = (unsigned long long)value;
+    }
+
+    start = len;
+    do {
+        buf[len++] = (char)('0' + (int)(u % 10));
+        u /= 10;
+    } while (u != 0);
+
+    for (i = start, j = len - 1; i < j; i++, j--) {
+        char tmp = buf[i];
+        buf[i] = buf[j];
+        buf[j] = tmp;
+    }
+
+    return len;
+}
+
+/* Fast path for integral values.  "%g" prints them as plain digits (no
+ * fraction, no exponent) as long as the digit count fits in the configured
+ * precision; anything else falls back to fpconv_g_fmt().  Returns 0 when the
+ * caller must fall back. */
+static int json_append_integral_number(strbuf_t *json, double num,
+                                       int precision)
+{
+    char buf[24];
+    int len = json_format_integer(buf, (long long)num);
+    int digits = len - (num < 0);
+
+    if (digits > precision)
+        return 0;
+
+    strbuf_append_mem(json, buf, (size_t)len);
+    return 1;
+}
+
 static void json_append_number(lua_State *l, json_config_t *cfg,
                                strbuf_t *json, strbuf_t *error_json,
                                int lindex)
@@ -878,10 +928,10 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
 
 #if LUA_VERSION_NUM >= 503
     if (lua_isinteger(l, lindex)) {
-        lua_Integer num = lua_tointeger(l, lindex);
-        strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE); /* max length of int64 is 19 */
-        len = sprintf(strbuf_empty_ptr(json), LUA_INTEGER_FMT, num);
-        strbuf_extend_length(json, len);
+        char buf[24];
+        len = json_format_integer(buf,
+                                  (long long)lua_tointeger(l, lindex));
+        strbuf_append_mem(json, buf, (size_t)len);
         return;
     }
 #endif
@@ -912,6 +962,18 @@ static void json_append_number(lua_State *l, json_config_t *cfg,
             strbuf_append_mem(json, "null", 4);
             return;
         }
+    }
+
+    /* Fast path: integral values that "%g" prints in fixed notation.  This
+     * covers ids, sizes and other integer-shaped numbers, which would
+     * otherwise pay for fpconv_g_fmt() (~100ns) on every value.  "-0" has no
+     * integral spelling of its own and is left to fpconv_g_fmt(). */
+    if (num > -1e16 && num < 1e16
+        && num == (double)(long long)num
+        && !(num == 0.0 && signbit(num))
+        && json_append_integral_number(json, num,
+                                       cfg->encode_number_precision)) {
+        return;
     }
 
     strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE);
@@ -1585,7 +1647,49 @@ static int json_is_invalid_number(json_parse_t *json)
 static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
     char *endptr;
-    long long tmpval = strtoll(json->ptr, &endptr, 10);
+    const char *p;
+    const char *q;
+    int neg;
+    int fits;
+    unsigned long long v;
+    long long tmpval;
+
+    /* Fast path: a plain integer (no fraction, exponent or hex marker) is
+     * parsed here rather than through strtoll().  Anything else, including
+     * values that overflow, falls back to strtoll()/fpconv_strtod(). */
+    p = json->ptr;
+    neg = (*p == '-');
+    q = p + neg;
+
+    if (*q >= '0' && *q <= '9') {
+        v = 0;
+        fits = 1;
+        do {
+            unsigned d = (unsigned)(*q - '0');
+            if (v > (ULLONG_MAX - d) / 10) {
+                fits = 0;
+                break;
+            }
+            v = v * 10 + d;
+            q++;
+        } while (*q >= '0' && *q <= '9');
+
+        if (fits && *q != '.' && *q != 'e' && *q != 'E' && *q != 'x'
+            && v <= (unsigned long long)LLONG_MAX + (unsigned)neg) {
+            tmpval = neg ? (long long)(0ULL - v) : (long long)v;
+            if (tmpval > PTRDIFF_MAX || tmpval < PTRDIFF_MIN) {
+                token->type = T_NUMBER;
+                token->value.number = (lua_Number)tmpval;
+            } else {
+                token->type = T_INTEGER;
+                token->value.integer = tmpval;
+            }
+            json->ptr = (char *)q;
+            return;
+        }
+    }
+
+    tmpval = strtoll(json->ptr, &endptr, 10);
     if (json->ptr == endptr || *endptr == '.' || *endptr == 'e' ||
         *endptr == 'E' || *endptr == 'x') {
         token->type = T_NUMBER;

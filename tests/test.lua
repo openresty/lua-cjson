@@ -101,6 +101,9 @@ local cjson_tests = {
     { "Decode numbers",
       json.decode, { '[ 0.0, -5e3, -1, 0.3e-3, 1023.2, 0e10 ]' },
       true, { { 0.0, -5000, -1, 0.0003, 1023.2, 0 } } },
+    { "Decode integers",
+      json.decode, { '[ 2147483647, -2147483648, 1234567890 ]' },
+      true, { { 2147483647, -2147483648, 1234567890 } } },
     { "Decode null",
       json.decode, { 'null' }, true, { json.null } },
     { "Decode true",
@@ -210,6 +213,32 @@ local cjson_tests = {
       json.encode, { { } }, true, { '{}' } },
     { "Encode integer",
       json.encode, { 10 }, true, { '10' } },
+    { "Encode integral doubles",
+      json.encode, { { 0.0, 1.0, -1.0, 42.0, -42.0, 12345678901234.0 } },
+      true, { '[0,1,-1,42,-42,12345678901234]' } },
+    { "Encode integral double beyond %g precision",
+      json.encode, { 1e15 }, true, { '1e+15' } },
+    { "Encode negative zero",
+      json.encode, { -0.0 }, true, { '-0' } },
+    { "Encode large integer", function()
+        if math.type and math.type(9007199254740993) == "integer" then
+            return json.encode(9007199254740993)
+        end
+        return "Lua integers not supported"
+      end, { }, true, {
+        math.type and math.type(9007199254740993) == "integer"
+            and '9007199254740993'
+            or "Lua integers not supported"
+      } },
+    { "Encode minimum integer", function()
+        if math.mininteger then
+            return json.encode(math.mininteger)
+        end
+        return "Lua integers not supported"
+      end, { }, true, {
+        math.mininteger and '-9223372036854775808'
+            or "Lua integers not supported"
+      } },
     { "Encode string",
       json.encode, { "hello" }, true, { '"hello"' } },
     { "Encode Lua function [throw error]",
