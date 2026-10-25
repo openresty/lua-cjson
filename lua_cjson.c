@@ -1246,7 +1246,13 @@ static int json_append_data(lua_State *l, json_config_t *cfg,
                         break;
                     }
                 }
-                json_append_object(l, cfg, current_depth, json);
+                if (len == 0) {
+                    /* An empty table always encodes as "{}".  Skipping
+                     * json_append_object() avoids a second lua_next() scan. */
+                    strbuf_append_mem(json, "{}", 2);
+                } else {
+                    json_append_object(l, cfg, current_depth, json);
+                }
             }
         }
         break;
@@ -1778,6 +1784,14 @@ static void json_parse_object_context(lua_State *l, json_parse_t *json)
 
     lua_newtable(l);
 
+    /* Fast path for "{}": the caller consumed '{', so a '}' here means the
+     * object is empty and no token dispatch is needed. */
+    if (*json->ptr == '}') {
+        json->ptr++;
+        json_decode_ascend(json);
+        return;
+    }
+
     json_next_token(json, &token);
 
     /* Handle empty objects */
@@ -1835,6 +1849,14 @@ static void json_parse_array_context(lua_State *l, json_parse_t *json)
         lua_pushlightuserdata(l, json_lightudata_mask(&json_array));
         lua_rawget(l, LUA_REGISTRYINDEX);
         lua_setmetatable(l, -2);
+    }
+
+    /* Fast path for "[]": the caller consumed '[', so a ']' here means the
+     * array is empty and no token dispatch is needed. */
+    if (*json->ptr == ']') {
+        json->ptr++;
+        json_decode_ascend(json);
+        return;
     }
 
     json_next_token(json, &token);
