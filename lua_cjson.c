@@ -37,6 +37,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,6 +118,12 @@
 
 #if LUA_VERSION_NUM >= 502
 #define lua_objlen(L,i)		luaL_len(L, (i))
+#endif
+
+/* Lua 5.1, 5.2 and LuaJIT typedef lua_Integer to ptrdiff_t */
+#ifndef LUA_MAXINTEGER
+#define LUA_MAXINTEGER PTRDIFF_MAX
+#define LUA_MININTEGER PTRDIFF_MIN
 #endif
 
 static const char * const *json_empty_array;
@@ -1585,19 +1592,21 @@ static int json_is_invalid_number(json_parse_t *json)
 static void json_next_number_token(json_parse_t *json, json_token_t *token)
 {
     char *endptr;
-    long long tmpval = strtoll(json->ptr, &endptr, 10);
+    long long tmpval;
+
+    errno = 0;
+    tmpval = strtoll(json->ptr, &endptr, 10);
     if (json->ptr == endptr || *endptr == '.' || *endptr == 'e' ||
-        *endptr == 'E' || *endptr == 'x') {
+        *endptr == 'E' || *endptr == 'x' || errno == ERANGE) {
         token->type = T_NUMBER;
         token->value.number = fpconv_strtod(json->ptr, &endptr);
         if (json->ptr == endptr) {
             json_set_token_error(token, json, "invalid number");
             return;
         }
-    } else if (tmpval > PTRDIFF_MAX || tmpval < PTRDIFF_MIN) {
-        /* Typical Lua builds typedef ptrdiff_t to lua_Integer. If tmpval is
-         * outside the range of that type, we need to use T_NUMBER to avoid
-         * truncation.
+    } else if (tmpval > LUA_MAXINTEGER || tmpval < LUA_MININTEGER) {
+        /* If tmpval is outside the range of lua_Integer, we need to use
+         * T_NUMBER to avoid truncation.
          */
         token->type = T_NUMBER;
         token->value.number = tmpval;
