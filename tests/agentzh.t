@@ -374,3 +374,28 @@ end
 2: float
 3: float
 4: nil
+
+
+
+=== TEST 25: integers outside the lua_Integer range decode as floats on Lua 5.3+
+--- lua
+local lv = tonumber((_VERSION):match("Lua 5%.([0-9]+)"))
+
+if lv >= 3 then
+  local cjson = require "cjson"
+  local array = cjson.decode [[ [9223372036854775807, -9223372036854775808,
+                                 9223372036854775808, 100000000000000000000] ]]
+  for i = 1, 4 do
+    print(tostring(i) .. ": " .. tostring(math.type(array[i])))
+  end
+else
+  print("1: integer")
+  print("2: integer")
+  print("3: float")
+  print("4: float")
+end
+--- out
+1: integer
+2: integer
+3: float
+4: float
